@@ -42,23 +42,23 @@ const STARTER_MESSAGE: WorkoutChatMessage = {
 
 function IntakePill({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-white">{value}</p>
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-slate-950">{value}</p>
     </div>
   );
 }
 
 function WorkoutPreview({ workout, persistence, warnings }: { workout: GeneratedWorkout; persistence: WorkoutPersistence; warnings: string[] }) {
   return (
-    <section className="rounded-[2rem] border border-[#007aff]/35 bg-[#07111f] p-5 shadow-2xl shadow-black/30 sm:p-7">
+    <section className="rounded-2xl border border-[#007aff]/35 bg-white p-5 shadow-sm sm:p-7">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.28em] text-[#7db7ff]">Generated workout</p>
-          <h2 className="mt-3 text-3xl font-black tracking-tight text-white">{workout.title}</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-300">{workout.summary}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#7db7ff]">Generated workout</p>
+          <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">{workout.title}</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">{workout.summary}</p>
         </div>
-        <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-wide text-white">
+        <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-950">
           {persistence.status === "saved" ? "Saved" : "Preview only"}
         </div>
       </div>
@@ -71,25 +71,25 @@ function WorkoutPreview({ workout, persistence, warnings }: { workout: Generated
 
       <div className="mt-7 space-y-5">
         {workout.blocks.map((block, blockIndex) => (
-          <div key={`${block.type}-${blockIndex}`} className="rounded-3xl border border-white/10 bg-black/25 p-4">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-[#ff4d4d]">{block.type}</p>
-            <h3 className="mt-2 text-xl font-black text-white">{block.title}</h3>
+          <div key={`${block.type}-${blockIndex}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#ff4d4d]">{block.type}</p>
+            <h3 className="mt-2 text-xl font-semibold text-slate-950">{block.title}</h3>
             <div className="mt-4 space-y-3">
               {block.items.map((item, itemIndex) => (
-                <div key={`${item.exerciseId}-${itemIndex}`} className="rounded-2xl bg-white/[0.05] p-4">
+                <div key={`${item.exerciseId}-${itemIndex}`} className="rounded-2xl bg-slate-50 p-4">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <p className="text-base font-black text-white">{item.exercise?.title ?? item.exerciseId}</p>
-                      <p className="mt-1 text-sm leading-6 text-zinc-300">{item.coachingNote}</p>
+                      <p className="text-base font-semibold text-slate-950">{item.exercise?.title ?? item.exerciseId}</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">{item.coachingNote}</p>
                     </div>
-                    <p className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-black uppercase text-black">
+                    <p className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase text-black">
                       {item.sets ? `${item.sets} sets` : item.durationSeconds ? `${item.durationSeconds}s` : "work"}
                     </p>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-zinc-300">
-                    {item.reps && <span className="rounded-full bg-white/10 px-3 py-1">{item.reps}</span>}
-                    {item.restSeconds !== null && <span className="rounded-full bg-white/10 px-3 py-1">Rest {item.restSeconds}s</span>}
-                    {item.tempo && <span className="rounded-full bg-white/10 px-3 py-1">Tempo {item.tempo}</span>}
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
+                    {item.reps && <span className="rounded-full bg-slate-100 px-3 py-1">{item.reps}</span>}
+                    {item.restSeconds !== null && <span className="rounded-full bg-slate-100 px-3 py-1">Rest {item.restSeconds}s</span>}
+                    {item.tempo && <span className="rounded-full bg-slate-100 px-3 py-1">Tempo {item.tempo}</span>}
                   </div>
                 </div>
               ))}
@@ -99,14 +99,14 @@ function WorkoutPreview({ workout, persistence, warnings }: { workout: Generated
       </div>
 
       {(workout.safetyNotes.length > 0 || warnings.length > 0 || persistence.reason) && (
-        <div className="mt-6 rounded-3xl border border-amber-300/20 bg-amber-300/10 p-4 text-sm leading-6 text-amber-50">
+        <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
           {[...workout.safetyNotes, ...warnings, persistence.reason].filter(Boolean).map((note) => (
             <p key={note}>• {note}</p>
           ))}
         </div>
       )}
 
-      <p className="mt-5 text-sm font-semibold leading-6 text-zinc-300">{workout.progressionNote}</p>
+      <p className="mt-5 text-sm font-semibold leading-6 text-slate-500">{workout.progressionNote}</p>
     </section>
   );
 }
@@ -204,38 +204,38 @@ export default function CreateWorkoutPage() {
   }
 
   return (
-    <div className="text-white">
-      <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/30 sm:p-7">
+    <div className="text-slate-950">
+      <div className="mx-auto grid max-w-none gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.28em] text-[#7db7ff]">Oracle Performance Lab</p>
-              <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">AI workout creator</h1>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-zinc-300">
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#7db7ff]">Oracle Performance Lab</p>
+              <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">AI workout creator</h1>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500">
                 A chat builder for one boxing-specific S&C session. No weekly-plan waffle, just today&apos;s work.
               </p>
             </div>
             <div className="hidden gap-2 sm:flex">
-              <Link href="/app/chats" className="rounded-full border border-white/15 px-4 py-2 text-xs font-black uppercase tracking-wide text-white hover:bg-white/10">
+              <Link href="/app/chats" className="rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-950 hover:bg-slate-100">
                 History
               </Link>
-              <Link href="/app" className="rounded-full border border-white/15 px-4 py-2 text-xs font-black uppercase tracking-wide text-white hover:bg-white/10">
+              <Link href="/app" className="rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-950 hover:bg-slate-100">
                 Back
               </Link>
             </div>
           </div>
 
-          <div className="mt-6 h-[48vh] min-h-[360px] space-y-3 overflow-y-auto rounded-3xl border border-white/10 bg-black/30 p-4">
+          <div className="mt-6 h-[48vh] min-h-[360px] space-y-3 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4">
             {messages.map((message, index) => (
               <div key={`${message.role}-${index}`} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[85%] rounded-3xl px-4 py-3 text-sm leading-6 ${message.role === "user" ? "bg-[#007aff] text-white" : "bg-white/10 text-zinc-100"}`}>
+                <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 ${message.role === "user" ? "bg-[#007aff] text-white" : "bg-slate-100 text-slate-900"}`}>
                   {message.content.split("\n").map((line) => (
                     <p key={line}>{line}</p>
                   ))}
                 </div>
               </div>
             ))}
-            {loading && <div className="rounded-3xl bg-white/10 px-4 py-3 text-sm text-zinc-300">Building...</div>}
+            {loading && <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-500">Building...</div>}
           </div>
 
           <form onSubmit={handleSubmit} className="mt-4 flex gap-3">
@@ -243,27 +243,27 @@ export default function CreateWorkoutPage() {
               value={input}
               onChange={(event) => setInput(event.target.value)}
               placeholder="Example: 35 min, dumbbells, intermediate, gas tank, no injuries"
-              className="min-w-0 flex-1 rounded-full border border-white/10 bg-black/40 px-5 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-[#007aff]"
+              className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white px-5 py-3 text-sm text-slate-950 outline-none placeholder:text-slate-500 focus:border-[#007aff]"
             />
             <button
               disabled={loading || !input.trim()}
-              className="rounded-full bg-white px-5 py-3 text-sm font-black uppercase tracking-wide text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-full bg-[#007aff] px-5 py-3 text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-[#2f96ff] disabled:cursor-not-allowed disabled:opacity-40"
             >
               Send
             </button>
           </form>
           {sessionId && (
-            <p className="mt-3 text-xs font-semibold text-zinc-500">
+            <p className="mt-3 text-xs font-semibold text-slate-500">
               Saved chat. Resume link: <Link className="text-[#7db7ff] hover:underline" href={`/app/create?sessionId=${sessionId}`}>open this session</Link>
             </p>
           )}
-          {error && <p className="mt-3 rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</p>}
+          {error && <p className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
         </section>
 
         <aside className="space-y-5">
           {intakeSummary.length > 0 && (
-            <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 sm:p-7">
-              <p className="text-xs font-black uppercase tracking-[0.28em] text-zinc-500">Current brief</p>
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Current brief</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {intakeSummary.map(([label, value]) => (
                   <IntakePill key={label} label={label} value={value} />
@@ -275,10 +275,10 @@ export default function CreateWorkoutPage() {
           {workout && persistence ? (
             <WorkoutPreview workout={workout} persistence={persistence} warnings={warnings} />
           ) : (
-            <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-7">
-              <p className="text-xs font-black uppercase tracking-[0.28em] text-zinc-500">Output</p>
-              <h2 className="mt-3 text-2xl font-black">Workout lands here</h2>
-              <p className="mt-3 text-sm leading-6 text-zinc-300">
+            <section className="rounded-2xl border border-slate-200 bg-white p-7">
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Output</p>
+              <h2 className="mt-3 text-xl font-semibold">Workout lands here</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-500">
                 Once the brief has the essentials, the server searches Supabase exercises, generates a session, validates the exercise IDs, then saves if workout tables exist.
               </p>
             </section>
