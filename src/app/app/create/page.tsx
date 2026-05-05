@@ -77,6 +77,60 @@ function ExerciseCard({
   );
 }
 
+
+function ChatActions() {
+  return (
+    <div className="mt-4 flex items-center gap-3 text-zinc-500">
+      {[
+        ["⧉", "Copy"],
+        ["♡", "Good response"],
+        ["♧", "Bad response"],
+        ["↥", "Share"],
+        ["↻", "Regenerate"],
+        ["…", "More"],
+      ].map(([icon, label]) => (
+        <button key={label} type="button" aria-label={label} className="text-base leading-none hover:text-black">
+          {icon}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PromptBar({
+  input,
+  loading,
+  onInput,
+  onSubmit,
+}: {
+  input: string;
+  loading: boolean;
+  onInput: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <form onSubmit={onSubmit} className="w-full max-w-3xl rounded-full border border-zinc-200 bg-white px-3 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
+      <div className="flex items-center gap-3">
+        <button type="button" aria-label="Add details" className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-2xl font-light text-black hover:bg-zinc-100">
+          +
+        </button>
+        <input
+          value={input}
+          onChange={(event) => onInput(event.target.value)}
+          placeholder="Describe the strength and conditioning session you have in mind"
+          className="h-11 min-w-0 flex-1 bg-transparent text-sm text-black outline-none placeholder:text-zinc-400"
+        />
+        <button type="button" aria-label="Voice input" className="hidden h-9 w-9 shrink-0 place-items-center rounded-full text-zinc-600 hover:bg-zinc-100 sm:grid">
+          ♫
+        </button>
+        <button disabled={loading || !input.trim()} aria-label="Send" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40">
+          <span className="text-[13px] leading-none">▮▮</span>
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function WorkoutPreview({
   workout,
   persistence,
@@ -400,61 +454,44 @@ export default function CreateWorkoutPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-7rem)] text-slate-950">
+    <main className="min-h-[calc(100vh-5rem)] bg-white text-black">
       {!messages.length && !workout ? (
-        <section className="flex min-h-[70vh] flex-col items-center justify-center px-4">
-          <h1 className="text-center text-xl font-medium tracking-tight text-slate-950 sm:text-2xl">
+        <section className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-3xl flex-col items-center justify-center px-4 pb-20 text-center">
+          <h1 className="text-[22px] font-medium tracking-[-0.02em] text-black sm:text-3xl">
             Hey, {userName}. What would you like to train?
           </h1>
-
-          <form onSubmit={handleSubmit} className="mt-10 w-full max-w-3xl">
-            <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-3 shadow-[0_8px_30px_rgba(15,23,42,0.08)]">
-              <button type="button" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-2xl font-light text-slate-700 hover:bg-slate-100" aria-label="Add details">
-                +
-              </button>
-              <input
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                placeholder="Describe the strength and conditioning session you have in mind"
-                className="min-w-0 flex-1 bg-transparent text-sm text-slate-950 outline-none placeholder:text-slate-400"
-              />
-              <button type="button" className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 sm:flex" aria-label="Voice input">
-                ◦
-              </button>
-              <button
-                disabled={loading || !input.trim()}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="Send"
-              >
-                ↑
-              </button>
-            </div>
-          </form>
+          <div className="mt-10 w-full">
+            <PromptBar input={input} loading={loading} onInput={setInput} onSubmit={handleSubmit} />
+          </div>
+          {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
         </section>
       ) : (
-        <section className="mx-auto flex min-h-[calc(100vh-7rem)] max-w-5xl flex-col">
-          <div ref={scrollRef} className="flex-1 space-y-6 overflow-y-auto px-2 py-6 sm:px-6">
+        <section className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-5xl flex-col px-4">
+          <div ref={scrollRef} className="flex-1 space-y-8 overflow-y-auto pb-10 pt-10 sm:px-8">
             {messages.map((message, index) => (
-              <div key={`${message.role}-${index}`} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[82%] whitespace-pre-wrap rounded-3xl px-4 py-3 text-sm leading-6 ${
-                    message.role === "user" ? "bg-slate-100 text-slate-950" : "bg-white text-slate-950"
-                  }`}
-                >
-                  {message.content}
-                </div>
+              <div key={`${message.role}-${index}`} className={message.role === "user" ? "flex justify-end" : "flex justify-start"}>
+                {message.role === "user" ? (
+                  <div className="max-w-[70%] rounded-full bg-zinc-100 px-4 py-2 text-sm leading-6 text-black">
+                    {message.content}
+                  </div>
+                ) : (
+                  <div className="max-w-3xl text-left">
+                    <div className="whitespace-pre-wrap text-sm font-medium leading-7 text-black">{message.content}</div>
+                    <ChatActions />
+                  </div>
+                )}
               </div>
             ))}
             {loading && (
               <div className="flex justify-start">
-                <div className="rounded-3xl bg-white px-4 py-3 text-sm text-slate-500">
+                <div className="max-w-3xl text-sm font-medium leading-7 text-black">
                   {status ?? "Typing..."}
                 </div>
               </div>
             )}
-            {error && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+            {error && <p className="max-w-3xl rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
             {intakeSummary.length > 0 && (
-              <div className="grid gap-2 sm:grid-cols-3">
+              <div className="grid max-w-3xl gap-2 sm:grid-cols-3">
                 {intakeSummary.map(([label, value]) => (
                   <IntakePill key={label} label={label} value={value} />
                 ))}
@@ -474,31 +511,11 @@ export default function CreateWorkoutPage() {
             ) : null}
           </div>
 
-          <form onSubmit={handleSubmit} className="sticky bottom-4 mx-auto w-full max-w-3xl px-2 sm:px-0">
-            <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-3 shadow-[0_8px_30px_rgba(15,23,42,0.08)]">
-              <button type="button" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-2xl font-light text-slate-700 hover:bg-slate-100" aria-label="Add details">
-                +
-              </button>
-              <input
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                placeholder="Describe the strength and conditioning session you have in mind"
-                className="min-w-0 flex-1 bg-transparent text-sm text-slate-950 outline-none placeholder:text-slate-400"
-              />
-              <button type="button" className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 sm:flex" aria-label="Voice input">
-                ◦
-              </button>
-              <button
-                disabled={loading || !input.trim()}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="Send"
-              >
-                ↑
-              </button>
-            </div>
-          </form>
+          <div className="sticky bottom-5 z-10 mx-auto w-full max-w-3xl pb-2">
+            <PromptBar input={input} loading={loading} onInput={setInput} onSubmit={handleSubmit} />
+          </div>
         </section>
       )}
-    </div>
+    </main>
   );
 }
