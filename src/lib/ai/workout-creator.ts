@@ -184,6 +184,7 @@ type TargetProfile = {
   movementPatterns: string[];
   boxingQualities: string[];
   targeted: boolean;
+  strict: boolean;
 };
 
 function targetProfileFor(intake: WorkoutIntake): TargetProfile {
@@ -211,11 +212,12 @@ function targetProfileFor(intake: WorkoutIntake): TargetProfile {
     movementPatterns: [...movementPatterns],
     boxingQualities: [...boxingQualities],
     targeted: muscles.size > 0 || movementPatterns.size > 0,
+    strict: muscles.size > 0,
   };
 }
 
 function exerciseMatchesTarget(exercise: CompactExercise, target: TargetProfile) {
-  if (!target.targeted) return true;
+  if (!target.strict) return true;
   const wantedMuscles = normalizedSet(target.muscles);
   const wantedPatterns = normalizedSet(target.movementPatterns);
   const primaryMatch = exercise.muscles.primary.some((muscle) => wantedMuscles.has(muscle.trim().toLowerCase()));
@@ -466,6 +468,17 @@ export async function gatherExerciseCandidates(intake: WorkoutIntake, rejectedEx
     .filter((exercise) => exerciseMatchesTarget(exercise, target))
     .map((exercise) => scoreExerciseCandidate(exercise, intake, config, terms, equipment, levels))
     .filter((item) => item.score > 0);
+
+  if (!scored.length && target.strict) {
+    const relaxedTarget = { ...target, strict: false };
+    scored.push(
+      ...[...candidateMap.values()]
+        .filter((exercise) => !rejected.has(exercise.id) && exercise.imageUrls.length > 0)
+        .filter((exercise) => exerciseMatchesTarget(exercise, relaxedTarget))
+        .map((exercise) => scoreExerciseCandidate(exercise, intake, config, terms, equipment, levels))
+        .filter((item) => item.score > 0),
+    );
+  }
 
   const selected = selectNovelCandidates(scored, 80, seed) as ExerciseCandidatePack;
   selected.debug = {
