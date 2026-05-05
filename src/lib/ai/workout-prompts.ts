@@ -1,4 +1,5 @@
 import type { CompactExercise } from "@/lib/exercises/search";
+import { WORKOUT_AI_SOUL } from "@/lib/ai/workout-soul";
 import type { GeneratedWorkout, WorkoutIntake } from "@/lib/ai/workout-types";
 
 export const INTAKE_FIELDS = [
@@ -14,7 +15,9 @@ export function intakeExtractionPrompt(existingIntake: Partial<WorkoutIntake>, t
   return [
     {
       role: "system" as const,
-      content: `You extract workout intake for Oracle Conditioning. Return JSON only.
+      content: `${WORKOUT_AI_SOUL}
+
+You extract workout intake for Oracle Conditioning. Return JSON only.
 
 Fields:
 - goal: the trainee's main outcome for today's workout.
@@ -51,15 +54,17 @@ export function workoutAssumptionsPrompt(intake: WorkoutIntake, candidates: Comp
   return [
     {
       role: "system" as const,
-      content: `You are Oracle Performance Lab inside a ChatGPT-style workout builder.
+      content: `${WORKOUT_AI_SOUL}
 
-Reply like a sharp boxing S&C coach. Explain how you are reading the user's goal and the assumptions you will use. Keep it short, practical, and conversational.
+You are speaking before building a workout draft.
 
 Rules:
-- Mention that exercises will come from the uploaded Supabase free-exercise-db library.
-- Do not claim the workout is saved yet.
-- Do not list a full workout. You are about to build a review draft.
-- If details are missing, state sensible assumptions instead of interrogating the user.`,
+- Keep it to 1-3 short sentences.
+- Do not say "game plan".
+- Do not mention Supabase, databases, exercise libraries, candidates, validation, or internal tools.
+- Do not list the full workout yet.
+- If equipment was clearly provided, briefly confirm the useful constraints and say you are building the draft.
+- If equipment is vague, ask what equipment they have instead of assuming.`,
     },
     {
       role: "user" as const,
@@ -82,7 +87,9 @@ export function workoutGenerationPrompt(intake: WorkoutIntake, candidates: Compa
   return [
     {
       role: "system" as const,
-      content: `You are Oracle Performance Lab, building practical strength and conditioning for boxers.
+      content: `${WORKOUT_AI_SOUL}
+
+You are building practical strength and conditioning for boxers.
 
 Create one individual S&C workout for today. Never create a weekly plan.
 
@@ -149,7 +156,9 @@ export function workoutSwapPrompt(intake: WorkoutIntake, workout: GeneratedWorko
   return [
     {
       role: "system" as const,
-      content: `You adjust a draft Oracle boxing S&C workout after user review.
+      content: `${WORKOUT_AI_SOUL}
+
+You adjust a draft Oracle boxing S&C workout after user review.
 
 Return the full updated workout JSON only.
 

@@ -87,10 +87,12 @@ function heuristicExtract(message: string): Partial<WorkoutIntake> {
 
 export function missingIntakeQuestions(intake: WorkoutIntake) {
   const missing: string[] = [];
-  if (!intake.goal) missing.push("What do you want this workout to achieve today?");
-  if (!intake.equipment.length) missing.push("What equipment have you got, or should I assume bodyweight?");
+  if (!intake.goal) missing.push("What do you want this session to help with?");
+  if (!intake.equipment.length) {
+    missing.push("What equipment do you have access to? Gym kit, dumbbells, bands, bench, machines, bag, cardio machine, or just bodyweight?");
+  }
   if (!intake.timeMinutes) missing.push("How long have you got?");
-  return missing.slice(0, 1);
+  return missing.slice(0, intake.equipment.length ? 1 : 2);
 }
 
 export function applyWorkoutAssumptions(intake: WorkoutIntake): WorkoutIntake {
@@ -170,7 +172,7 @@ export async function gatherExerciseCandidates(intake: WorkoutIntake, rejectedEx
 }
 
 export async function streamWorkoutAssumptions(intake: WorkoutIntake, candidates: CompactExercise[]) {
-  const fallback = `I’m reading this as ${intake.goal ?? "a boxing conditioning session"}. I’ll assume ${intake.timeMinutes ?? 30} minutes, ${intake.equipment.join(", ") || "bodyweight"}, ${intake.level ?? "intermediate"} level, and I’ll build from the uploaded Supabase free-exercise-db exercises only. I’ll give you a draft to approve or swap before saving.`;
+  const fallback = `Got it. I’ll build this around ${intake.goal ?? "boxing conditioning"}, using ${intake.equipment.join(", ") || "the equipment you listed"} for ${intake.timeMinutes ?? 30} minutes.`;
   return openAiTextStream(workoutAssumptionsPrompt(intake, candidates), fallback);
 }
 
