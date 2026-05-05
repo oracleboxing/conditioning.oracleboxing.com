@@ -11,7 +11,7 @@ export default async function CommunityPage() {
   const { workouts, source, note } = await getCommunityWorkouts();
 
   return (
-    <main className="min-h-screen bg-[#05070a] px-5 py-6 text-white sm:px-6 sm:py-8">
+    <div className="text-white">
       <div className="mx-auto max-w-7xl">
         <header className="overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0b111a] shadow-2xl shadow-black/30">
           <div className="grid gap-8 p-5 sm:p-8 lg:grid-cols-[1.05fr_0.95fr] lg:p-10">
@@ -70,6 +70,6 @@ export default async function CommunityPage() {
           <CommunityGallery workouts={workouts} sourceNote={note} />
         </section>
       </div>
-    </main>
+    </div>
   );
 }

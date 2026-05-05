@@ -74,6 +74,17 @@ export type WorkoutLookupResult =
   | { status: "ready"; workout: WorkoutDisplay; source: "supabase" | "mock"; notice?: string }
   | { status: "not-found" };
 
+export type SavedWorkoutSummary = Pick<
+  WorkoutDisplay,
+  "id" | "title" | "goal" | "durationMinutes" | "difficulty" | "equipment" | "visibility" | "createdAt"
+>;
+
+export type SavedWorkoutsResult = {
+  workouts: SavedWorkoutSummary[];
+  source: "supabase" | "mock";
+  note?: string;
+};
+
 function isBlockType(value: string | null): value is WorkoutBlockType {
   return value === "warmup" || value === "main" || value === "finisher" || value === "cooldown";
 }
@@ -182,6 +193,32 @@ function mapWorkout(row: SupabaseWorkoutRow): WorkoutDisplay {
   };
 }
 
+function mapSummary(row: Omit<SupabaseWorkoutRow, "workout_items">): SavedWorkoutSummary {
+  return {
+    id: row.id,
+    title: row.title,
+    goal: row.goal,
+    durationMinutes: row.duration_minutes,
+    difficulty: row.difficulty,
+    equipment: row.equipment ?? [],
+    visibility: row.visibility ?? "private",
+    createdAt: row.created_at,
+  };
+}
+
+function mockSummary(): SavedWorkoutSummary {
+  return {
+    id: mockWorkout.id,
+    title: mockWorkout.title,
+    goal: mockWorkout.goal,
+    durationMinutes: mockWorkout.durationMinutes,
+    difficulty: mockWorkout.difficulty,
+    equipment: mockWorkout.equipment,
+    visibility: mockWorkout.visibility,
+    createdAt: mockWorkout.createdAt,
+  };
+}
+
 function shouldUseMock(id: string, error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   return id === "demo" || id === "demo-boxing-engine" || /not configured|does not exist|schema cache|relation .*workouts/i.test(message);
@@ -234,6 +271,59 @@ export async function getWorkoutById(id: string): Promise<WorkoutLookupResult> {
         workout: mockWorkout,
         source: "mock",
         notice: "Showing the typed preview workout because Supabase is not configured locally.",
+      };
+    }
+    throw error;
+  }
+}
+
+
+export async function getSavedWorkouts(userId?: string): Promise<SavedWorkoutsResult> {
+  if (!userId) {
+    return {
+      workouts: [mockSummary()],
+      source: "mock",
+      note: "Showing a demo workout until you sign in with a premium member account.",
+    };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("workouts")
+      .select("id,title,goal,duration_minutes,difficulty,equipment,visibility,created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(12);
+
+    if (error) {
+      if (shouldUseMock("demo", error)) {
+        return {
+          workouts: [mockSummary()],
+          source: "mock",
+          note: "Showing the demo workout because the saved workout tables are not available in this environment yet.",
+        };
+      }
+      throw new Error(error.message);
+    }
+
+    const workouts = (data ?? []).map((row) => mapSummary(row as unknown as Omit<SupabaseWorkoutRow, "workout_items">));
+
+    if (!workouts.length) {
+      return {
+        workouts: [mockSummary()],
+        source: "mock",
+        note: "No saved workouts yet, so the lab is showing a typed demo session as a fallback.",
+      };
+    }
+
+    return { workouts, source: "supabase" };
+  } catch (error) {
+    if (shouldUseMock("demo", error)) {
+      return {
+        workouts: [mockSummary()],
+        source: "mock",
+        note: "Showing the demo workout because Supabase is not configured locally.",
       };
     }
     throw error;
