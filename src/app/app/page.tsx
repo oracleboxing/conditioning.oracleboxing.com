@@ -1,6 +1,8 @@
 import { createAuthClient } from "@/lib/supabase/auth-server";
 import { signOut } from "../login/actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function AppHome() {
   const supabase = await createAuthClient();
   const {

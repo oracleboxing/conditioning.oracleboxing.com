@@ -10,9 +10,23 @@ export async function GET(request: NextRequest) {
   const code = requestUrl.searchParams.get("code");
   const next = safeNext(requestUrl.searchParams.get("next"));
 
-  if (code) {
-    const supabase = await createAuthClient();
-    await supabase.auth.exchangeCodeForSession(code);
+  if (!code) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("state", "error");
+    loginUrl.searchParams.set("message", "Sign-in link is missing a code. Request a fresh magic link.");
+    loginUrl.searchParams.set("next", next);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  const supabase = await createAuthClient();
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+  if (error) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("state", "error");
+    loginUrl.searchParams.set("message", "That sign-in link has expired or was already used. Request a fresh one.");
+    loginUrl.searchParams.set("next", next);
+    return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.redirect(new URL(next, request.url));

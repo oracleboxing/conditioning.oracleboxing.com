@@ -20,6 +20,10 @@ function premiumAllowlist() {
   );
 }
 
+function rowHasPremiumTier(row: { active?: boolean | null; tier?: string | null } | null) {
+  return Boolean(row?.active && PREMIUM_TIERS.has(String(row.tier ?? "").toLowerCase()));
+}
+
 export async function hasPremiumAccess(
   supabase: SupabaseClient,
   user: User,
@@ -38,11 +42,30 @@ export async function hasPremiumAccess(
       .eq("active", true)
       .maybeSingle();
 
-    if (error || !data) {
+    if (!error && rowHasPremiumTier(data)) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+
+  if (!email) {
+    return false;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("member_access")
+      .select("active,tier")
+      .eq("email", email)
+      .eq("active", true)
+      .maybeSingle();
+
+    if (error) {
       return false;
     }
 
-    return PREMIUM_TIERS.has(String(data.tier ?? "").toLowerCase());
+    return rowHasPremiumTier(data);
   } catch {
     return false;
   }
