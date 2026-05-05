@@ -14,7 +14,7 @@ export async function signInWithEmail(formData: FormData) {
   const next = safeNext(formData.get("next"));
 
   if (!email) {
-    redirect(`/login?message=${encodeURIComponent("Enter your email first")}&next=${encodeURIComponent(next)}`);
+    redirect(`/login?state=error&message=${encodeURIComponent("Enter your email first")}&next=${encodeURIComponent(next)}`);
   }
 
   const headerStore = await headers();
@@ -29,10 +29,10 @@ export async function signInWithEmail(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/login?message=${encodeURIComponent(error.message)}&next=${encodeURIComponent(next)}`);
+    redirect(`/login?state=error&message=${encodeURIComponent(error.message)}&next=${encodeURIComponent(next)}`);
   }
 
-  redirect(`/login?message=${encodeURIComponent("Check your email for the sign-in link.")}&next=${encodeURIComponent(next)}`);
+  redirect(`/login?state=sent&email=${encodeURIComponent(email)}&next=${encodeURIComponent(next)}`);
 }
 
 export async function signOut() {
