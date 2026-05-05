@@ -34,6 +34,7 @@ const LIMIT = Number(argValue('--limit', '0')) || 0;
 const DRY_RUN_LIMIT = Number(argValue('--dry-run-limit', '5')) || 5;
 const BUCKET = argValue('--bucket', DEFAULT_BUCKET);
 const SKIP_IMAGES = args.has('--skip-images');
+const BACKFILL_METADATA = args.has('--backfill-metadata');
 const ENV_FILE = argValue('--env', null);
 const IMAGE_CONCURRENCY = Math.max(1, Math.min(10, Number(argValue('--image-concurrency', '4')) || 4));
 const EXERCISE_BATCH_SIZE = Math.max(1, Math.min(100, Number(argValue('--exercise-batch-size', '50')) || 50));
@@ -360,7 +361,49 @@ async function updateRecord(config, id, record) {
     body: JSON.stringify(record),
   });
   const text = await response.text();
-  if (!response.ok) throw new Error(`Update failed for ${record.slug}: HTTP ${response.status} ${text.slice(0, 500)}`);
+  if (!response.ok) throw new Error(`Update failed for ${record.slug || id}: HTTP ${response.status} ${text.slice(0, 500)}`);
+}
+
+async function backfillExerciseMetadata(config, exercises, columns) {
+  const writable = ['movement_patterns', 'boxing_qualities'].filter((column) => columns.includes(column));
+  if (!writable.length) throw new Error('Backfill needs movement_patterns and/or boxing_qualities columns on public.exercises.');
+
+  let matched = 0;
+  let updated = 0;
+  let failures = 0;
+  let movementPatternNonEmpty = 0;
+  let boxingQualityNonEmpty = 0;
+
+  for (let i = 0; i < exercises.length; i += EXERCISE_BATCH_SIZE) {
+    const batch = exercises.slice(i, i + EXERCISE_BATCH_SIZE);
+    const slugs = batch.map((exercise) => slugify(exercise.id || exercise.name));
+    const existing = await findExistingBySlug(config, slugs);
+
+    for (const exercise of batch) {
+      const slug = slugify(exercise.id || exercise.name);
+      const existingId = existing.get(slug);
+      if (!existingId) continue;
+      matched += 1;
+
+      const record = {};
+      if (columns.includes('movement_patterns')) record.movement_patterns = deriveMovementPatterns(exercise);
+      if (columns.includes('boxing_qualities')) record.boxing_qualities = deriveBoxingQualities(exercise);
+      if (record.movement_patterns?.length) movementPatternNonEmpty += 1;
+      if (record.boxing_qualities?.length) boxingQualityNonEmpty += 1;
+
+      try {
+        await updateRecord(config, existingId, record);
+        updated += 1;
+      } catch (error) {
+        failures += 1;
+        console.error(`Failed to backfill ${slug}: ${error.message}`);
+      }
+    }
+
+    console.log(`Backfilled batch ${Math.min(i + batch.length, exercises.length)}/${exercises.length}: matched=${matched}, updated=${updated}, failures=${failures}`);
+  }
+
+  return { matched, updated, failures, movementPatternNonEmpty, boxingQualityNonEmpty };
 }
 
 async function importExercises(config, exercises, columns) {
@@ -458,9 +501,22 @@ async function main() {
   console.log(`Dataset exercises fetched: ${dataset.length}. Selected: ${selected.length}.`);
 
   if (DRY_RUN) {
-    const preview = selected.slice(0, DRY_RUN_LIMIT).map((exercise) => adaptExercise(exercise, (exercise.images || []).map((img) => publicImageUrl(config.supabaseUrl, BUCKET, normalizeStoragePath(img)))));
+    const preview = selected.slice(0, DRY_RUN_LIMIT).map((exercise) => BACKFILL_METADATA
+      ? {
+          slug: slugify(exercise.id || exercise.name),
+          movement_patterns: deriveMovementPatterns(exercise),
+          boxing_qualities: deriveBoxingQualities(exercise),
+        }
+      : adaptExercise(exercise, (exercise.images || []).map((img) => publicImageUrl(config.supabaseUrl, BUCKET, normalizeStoragePath(img)))));
     console.log(JSON.stringify({ previewCount: preview.length, firstPreview: preview[0] }, null, 2));
     console.log('Dry-run complete. Re-run with --apply for writes.');
+    return;
+  }
+
+  if (BACKFILL_METADATA) {
+    const results = await backfillExerciseMetadata(config, selected, columns);
+    const verification = await verify(config);
+    console.log(JSON.stringify({ results, verification }, null, 2));
     return;
   }
 

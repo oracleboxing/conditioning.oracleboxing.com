@@ -1,12 +1,14 @@
 import { searchExercises, type CompactExercise } from "@/lib/exercises/search";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
-import { intakeExtractionPrompt, workoutAssumptionsPrompt, workoutEditPrompt, workoutGenerationPrompt, workoutSwapPrompt } from "@/lib/ai/workout-prompts";
+import { intakeExtractionPrompt, workoutAssumptionsPrompt, workoutEditPatchFallback, workoutEditPrompt, workoutGenerationPrompt, workoutSwapPrompt } from "@/lib/ai/workout-prompts";
 import { openAiJson, openAiTextStream, workoutModel } from "@/lib/ai/openai";
 import type {
   GeneratedWorkout,
   GeneratedWorkoutBlock,
   GeneratedWorkoutItem,
   WorkoutChatMessage,
+  WorkoutEditPatch,
+  WorkoutEditPatchOperation,
   WorkoutIntake,
   WorkoutPersistence,
 } from "@/lib/ai/workout-types";
@@ -18,6 +20,11 @@ const EMPTY_INTAKE: WorkoutIntake = {
   level: null,
   injuriesOrConstraints: null,
   boxingFocus: null,
+  trainingEnvironment: null,
+  recentTrainingOrFatigue: null,
+  preferredIntensity: null,
+  whatToAvoid: null,
+  sessionBias: null,
 };
 
 const WORKOUT_TABLE_MISSING_CODES = new Set(["42P01", "PGRST205", "PGRST202"]);
@@ -42,6 +49,11 @@ function cleanLevel(value: unknown): WorkoutIntake["level"] {
   return null;
 }
 
+function cleanSessionBias(value: unknown): WorkoutIntake["sessionBias"] {
+  if (value === "strength" || value === "power" || value === "conditioning" || value === "mobility" || value === "mixed" || value === "unknown") return value;
+  return null;
+}
+
 function normalizeIntake(value: Partial<WorkoutIntake> | null | undefined): WorkoutIntake {
   return {
     goal: cleanString(value?.goal),
@@ -50,6 +62,11 @@ function normalizeIntake(value: Partial<WorkoutIntake> | null | undefined): Work
     level: cleanLevel(value?.level),
     injuriesOrConstraints: cleanString(value?.injuriesOrConstraints),
     boxingFocus: cleanString(value?.boxingFocus),
+    trainingEnvironment: cleanString(value?.trainingEnvironment),
+    recentTrainingOrFatigue: cleanString(value?.recentTrainingOrFatigue),
+    preferredIntensity: cleanString(value?.preferredIntensity),
+    whatToAvoid: cleanString(value?.whatToAvoid),
+    sessionBias: cleanSessionBias(value?.sessionBias),
   };
 }
 
@@ -62,6 +79,11 @@ function mergeIntake(base: WorkoutIntake, extracted: Partial<WorkoutIntake>) {
     level: clean.level ?? base.level,
     injuriesOrConstraints: clean.injuriesOrConstraints ?? base.injuriesOrConstraints,
     boxingFocus: clean.boxingFocus ?? base.boxingFocus,
+    trainingEnvironment: clean.trainingEnvironment ?? base.trainingEnvironment,
+    recentTrainingOrFatigue: clean.recentTrainingOrFatigue ?? base.recentTrainingOrFatigue,
+    preferredIntensity: clean.preferredIntensity ?? base.preferredIntensity,
+    whatToAvoid: clean.whatToAvoid ?? base.whatToAvoid,
+    sessionBias: clean.sessionBias ?? base.sessionBias,
   } satisfies WorkoutIntake;
 }
 
@@ -75,6 +97,10 @@ function heuristicExtract(message: string): Partial<WorkoutIntake> {
   const equipment = ["bodyweight", "dumbbell", "dumbbells", "kettlebell", "barbell", "band", "bands", "bench", "pull-up bar", "medicine ball"].filter((item) => lower.includes(item));
   const level = lower.includes("beginner") ? "beginner" : lower.includes("advanced") ? "advanced" : lower.includes("intermediate") ? "intermediate" : undefined;
   const noInjuries = /no (injuries|pain|issues|constraints)/i.test(message);
+  const nothingToAvoid = /nothing to avoid|avoid nothing|no (burpees|running|jumping|overhead|preferences|avoid)/i.test(message);
+  const trainingEnvironment = lower.includes("hotel") ? "hotel" : lower.includes("home") ? "home" : lower.includes("gym") ? "gym" : undefined;
+  const sessionBias = lower.includes("mobility") ? "mobility" : lower.includes("power") || lower.includes("explosive") ? "power" : lower.includes("conditioning") || lower.includes("cardio") || lower.includes("engine") ? "conditioning" : lower.includes("strength") ? "strength" : undefined;
+  const preferredIntensity = lower.includes("easy") || lower.includes("light") ? "easy" : lower.includes("hard") || lower.includes("intense") ? "hard" : lower.includes("moderate") ? "moderate" : undefined;
 
   return {
     goal: message.length > 8 ? message : undefined,
@@ -82,17 +108,45 @@ function heuristicExtract(message: string): Partial<WorkoutIntake> {
     timeMinutes: minutes ? Number(minutes) : undefined,
     level,
     injuriesOrConstraints: noInjuries ? "none" : undefined,
+    trainingEnvironment,
+    preferredIntensity,
+    whatToAvoid: nothingToAvoid ? "none" : undefined,
+    sessionBias,
   };
 }
 
 export function missingIntakeQuestions(intake: WorkoutIntake) {
-  const missing: string[] = [];
-  if (!intake.goal) missing.push("What do you want this session to help with?");
+  const questions: string[] = [];
+  if (!intake.goal) questions.push("What do you want this session to actually improve today: gas tank, strength, punch power, footwork, mobility, or something else?");
   if (!intake.equipment.length) {
-    missing.push("What equipment do you have access to? Gym kit, dumbbells, bands, bench, machines, bag, cardio machine, or just bodyweight?");
+    questions.push("What kit have you got access to: full gym, dumbbells, bands, bench, cables, cardio machines, bag, open floor space, or bodyweight only?");
   }
-  if (!intake.timeMinutes) missing.push("How long have you got?");
-  return missing.slice(0, intake.equipment.length ? 1 : 2);
+  if (!intake.timeMinutes) questions.push("How long have you got, and do you want it to feel controlled, hard, or nasty in a useful way?");
+
+  const hasCriticalGap = questions.length > 0;
+  const contextQuestions = [
+    !intake.trainingEnvironment ? "Where are you training: home, hotel, commercial gym, boxing gym, or outside?" : null,
+    !intake.recentTrainingOrFatigue ? "How are you feeling from recent training: fresh, sore, tired, or carrying heavy fatigue?" : null,
+    !intake.injuriesOrConstraints ? "Any injuries, pain, movements to be careful with, or are we clear?" : null,
+    !intake.preferredIntensity ? "How hard should this feel today: easy, moderate, hard, or brutal but still sensible?" : null,
+    !intake.boxingFocus ? "What boxing demand should this support most: feet, punch power, shoulder durability, rotation, core, or engine?" : null,
+    !intake.whatToAvoid ? "Anything you hate or want to avoid today: jumping, running, burpees, overhead work, heavy legs, floor work?" : null,
+    !intake.sessionBias || intake.sessionBias === "unknown" ? "Should it lean strength, power, conditioning, mobility, or a balanced mix?" : null,
+  ].filter((question): question is string => Boolean(question));
+
+  if (hasCriticalGap) return [...questions, ...contextQuestions].slice(0, 5);
+
+  const usefulContextCount = [
+    intake.trainingEnvironment,
+    intake.recentTrainingOrFatigue,
+    intake.injuriesOrConstraints,
+    intake.preferredIntensity,
+    intake.whatToAvoid,
+    intake.sessionBias && intake.sessionBias !== "unknown" ? intake.sessionBias : null,
+  ].filter(Boolean).length;
+
+  if (usefulContextCount < 3) return contextQuestions.slice(0, 4);
+  return [];
 }
 
 export function applyWorkoutAssumptions(intake: WorkoutIntake): WorkoutIntake {
@@ -103,6 +157,11 @@ export function applyWorkoutAssumptions(intake: WorkoutIntake): WorkoutIntake {
     level: intake.level && intake.level !== "unknown" ? intake.level : "intermediate",
     injuriesOrConstraints: intake.injuriesOrConstraints ?? "none stated",
     boxingFocus: intake.boxingFocus ?? "general boxing conditioning",
+    trainingEnvironment: intake.trainingEnvironment ?? "not specified",
+    recentTrainingOrFatigue: intake.recentTrainingOrFatigue ?? "not specified",
+    preferredIntensity: intake.preferredIntensity ?? "moderate to hard",
+    whatToAvoid: intake.whatToAvoid ?? "none stated",
+    sessionBias: intake.sessionBias && intake.sessionBias !== "unknown" ? intake.sessionBias : "mixed",
   };
 }
 
@@ -180,65 +239,171 @@ function equipmentParam(intake: WorkoutIntake) {
   return equipment.join(",") || undefined;
 }
 
-function stableShuffle<T extends { id: string }>(items: T[], seed: string) {
-  const scored = items.map((item) => {
-    let hash = 0;
-    const source = `${seed}:${item.id}`;
-    for (let index = 0; index < source.length; index += 1) {
-      hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
-    }
-    return { item, score: hash };
-  });
-
-  return scored.sort((a, b) => a.score - b.score).map(({ item }) => item);
+function stableHash(source: string) {
+  let hash = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
+  }
+  return hash;
 }
 
-export async function gatherExerciseCandidates(intake: WorkoutIntake, rejectedExerciseIds: string[] = []) {
+type CandidateDebug = {
+  searchedFor: ReturnType<typeof searchConfigFor> & { terms: string[]; equipment?: string; difficulty?: string };
+  gathered: number;
+  returned: number;
+  topScores: Array<{ id: string; title: string; score: number; reasons: string[] }>;
+};
+
+export type ExerciseCandidatePack = CompactExercise[] & { debug?: CandidateDebug };
+
+function normalizedSet(values: string[]) {
+  return new Set(values.map((value) => value.trim().toLowerCase()).filter(Boolean));
+}
+
+function intersects(values: string[], wanted: Set<string>) {
+  return values.some((value) => wanted.has(value.trim().toLowerCase()));
+}
+
+function scoreExerciseCandidate(exercise: CompactExercise, intake: WorkoutIntake, config: ReturnType<typeof searchConfigFor>, terms: string[], equipment?: string, difficulty?: string) {
+  let score = 0;
+  const reasons: string[] = [];
+  const wantedQualities = normalizedSet(config.boxingQualities);
+  const wantedPatterns = normalizedSet(config.movementPatterns);
+  const wantedMuscles = normalizedSet(config.muscles);
+  const title = exercise.title.toLowerCase();
+  const summary = (exercise.instructionsSummary ?? "").toLowerCase();
+  const haystack = `${title} ${summary} ${exercise.category ?? ""} ${exercise.sourceEquipment ?? ""}`.toLowerCase();
+
+  if (exercise.imageUrls.length) {
+    score += 20;
+    reasons.push("has-image");
+  }
+  if (intersects(exercise.boxingQualities, wantedQualities)) {
+    const matches = exercise.boxingQualities.filter((quality) => wantedQualities.has(quality));
+    score += 18 * matches.length;
+    reasons.push(`quality:${matches.join("/")}`);
+  }
+  if (intersects(exercise.movementPatterns, wantedPatterns)) {
+    const matches = exercise.movementPatterns.filter((pattern) => wantedPatterns.has(pattern));
+    score += 14 * matches.length;
+    reasons.push(`pattern:${matches.join("/")}`);
+  }
+  const muscles = [...exercise.muscles.primary, ...exercise.muscles.secondary];
+  if (intersects(muscles, wantedMuscles)) {
+    score += 10;
+    reasons.push("muscle-match");
+  }
+  if (equipment) {
+    const wantedEquipment = normalizedSet(equipment.split(","));
+    const exerciseEquipment = [...exercise.equipment, exercise.sourceEquipment ?? ""];
+    if (intersects(exerciseEquipment, wantedEquipment)) {
+      score += 16;
+      reasons.push("equipment-match");
+    } else if (wantedEquipment.has("bodyweight") && exerciseEquipment.some((item) => /body only|bodyweight/i.test(item))) {
+      score += 16;
+      reasons.push("equipment-match");
+    } else {
+      score -= 18;
+      reasons.push("equipment-mismatch");
+    }
+  }
+  if (difficulty && exercise.difficulty === difficulty) {
+    score += 8;
+    reasons.push("level-match");
+  }
+  for (const term of terms) {
+    const cleanTerm = term.toLowerCase();
+    if (title.includes(cleanTerm)) {
+      score += 7;
+      reasons.push(`title:${term}`);
+    } else if (haystack.includes(cleanTerm)) {
+      score += 3;
+    }
+  }
+  if (intake.injuriesOrConstraints && /shoulder|rotator|impingement/i.test(intake.injuriesOrConstraints) && /press|dip|upright row/i.test(title)) {
+    score -= 35;
+    reasons.push("shoulder-risk");
+  }
+  if (/stretch|mobility/.test(title) && !wantedQualities.has("mobility-recovery")) score -= 6;
+
+  return { exercise, score, reasons };
+}
+
+function selectNovelCandidates(scored: Array<ReturnType<typeof scoreExerciseCandidate>>, limit: number, seed: string) {
+  const selected: CompactExercise[] = [];
+  const seenPatterns = new Map<string, number>();
+  const seenMuscles = new Map<string, number>();
+
+  const ranked = scored
+    .map((item) => ({ ...item, tieBreaker: stableHash(`${seed}:${item.exercise.id}`) / 0xffffffff }))
+    .sort((a, b) => b.score - a.score || a.tieBreaker - b.tieBreaker);
+
+  while (selected.length < limit && ranked.length) {
+    let bestIndex = 0;
+    let bestAdjusted = -Infinity;
+    for (let index = 0; index < ranked.length; index += 1) {
+      const item = ranked[index];
+      const patternPenalty = item.exercise.movementPatterns.reduce((sum, pattern) => sum + (seenPatterns.get(pattern) ?? 0) * 5, 0);
+      const musclePenalty = item.exercise.muscles.primary.reduce((sum, muscle) => sum + (seenMuscles.get(muscle) ?? 0) * 3, 0);
+      const adjusted = item.score - patternPenalty - musclePenalty - item.tieBreaker;
+      if (adjusted > bestAdjusted) {
+        bestAdjusted = adjusted;
+        bestIndex = index;
+      }
+    }
+
+    const [picked] = ranked.splice(bestIndex, 1);
+    selected.push(picked.exercise);
+    picked.exercise.movementPatterns.forEach((pattern) => seenPatterns.set(pattern, (seenPatterns.get(pattern) ?? 0) + 1));
+    picked.exercise.muscles.primary.forEach((muscle) => seenMuscles.set(muscle, (seenMuscles.get(muscle) ?? 0) + 1));
+  }
+
+  return selected;
+}
+
+export async function gatherExerciseCandidates(intake: WorkoutIntake, rejectedExerciseIds: string[] = []): Promise<ExerciseCandidatePack> {
   const equipment = equipmentParam(intake);
   const levels = intake.level && intake.level !== "unknown" ? intake.level : undefined;
   const candidateMap = new Map<string, CompactExercise>();
+  const add = (exercises: CompactExercise[]) => exercises.forEach((exercise) => candidateMap.set(exercise.id, exercise));
 
   const config = searchConfigFor(intake);
+  const terms = searchTermsFor(intake);
 
-  const broad = await searchExercises({ equipment, difficulty: levels, limit: 30 });
-  broad.data.forEach((exercise) => candidateMap.set(exercise.id, exercise));
+  add((await searchExercises({ equipment, difficulty: levels, limit: 100 })).data);
 
-  for (const boxingQuality of config.boxingQualities) {
-    if (candidateMap.size >= 80) break;
-    const result = await searchExercises({ boxingQuality, equipment, difficulty: levels, limit: 14 });
-    result.data.forEach((exercise) => candidateMap.set(exercise.id, exercise));
-  }
+  await Promise.all([
+    ...config.boxingQualities.map((boxingQuality) => searchExercises({ boxingQuality, equipment, difficulty: levels, limit: 30 }).then((result) => add(result.data))),
+    ...config.movementPatterns.map((movementPattern) => searchExercises({ movementPattern, equipment, difficulty: levels, limit: 24 }).then((result) => add(result.data))),
+    ...config.muscles.map((muscle) => searchExercises({ muscle, equipment, difficulty: levels, limit: 20 }).then((result) => add(result.data))),
+    ...terms.slice(0, 10).map((q) => searchExercises({ q, equipment, difficulty: levels, limit: 16 }).then((result) => add(result.data))),
+  ]);
 
-  for (const movementPattern of config.movementPatterns) {
-    if (candidateMap.size >= 80) break;
-    const result = await searchExercises({ movementPattern, equipment, difficulty: levels, limit: 10 });
-    result.data.forEach((exercise) => candidateMap.set(exercise.id, exercise));
-  }
-
-  for (const muscle of config.muscles) {
-    if (candidateMap.size >= 80) break;
-    const result = await searchExercises({ muscle, equipment, difficulty: levels, limit: 8 });
-    result.data.forEach((exercise) => candidateMap.set(exercise.id, exercise));
-  }
-
-  for (const term of searchTermsFor(intake)) {
-    if (candidateMap.size >= 80) break;
-    const result = await searchExercises({ q: term, equipment, difficulty: levels, limit: 8 });
-    result.data.forEach((exercise) => candidateMap.set(exercise.id, exercise));
-  }
-
-  if (candidateMap.size < 12 && equipment) {
-    const fallback = await searchExercises({ difficulty: levels, limit: 40 });
-    fallback.data.forEach((exercise) => candidateMap.set(exercise.id, exercise));
-  }
+  if (candidateMap.size < 30 && equipment) add((await searchExercises({ difficulty: levels, limit: 100 })).data);
 
   const rejected = new Set(rejectedExerciseIds);
   const seed = `${intake.goal ?? ""}|${intake.boxingFocus ?? ""}|${intake.equipment.join(",")}|${new Date().toISOString().slice(0, 10)}`;
-  return stableShuffle([...candidateMap.values()].filter((exercise) => !rejected.has(exercise.id)), seed).slice(0, 80);
+  const scored = [...candidateMap.values()]
+    .filter((exercise) => !rejected.has(exercise.id) && exercise.imageUrls.length > 0)
+    .map((exercise) => scoreExerciseCandidate(exercise, intake, config, terms, equipment, levels))
+    .filter((item) => item.score > 0);
+
+  const selected = selectNovelCandidates(scored, 80, seed) as ExerciseCandidatePack;
+  selected.debug = {
+    searchedFor: { ...config, terms, equipment, difficulty: levels },
+    gathered: candidateMap.size,
+    returned: selected.length,
+    topScores: scored
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 12)
+      .map(({ exercise, score, reasons }) => ({ id: exercise.id, title: exercise.title, score, reasons })),
+  };
+
+  return selected;
 }
 
 export async function streamWorkoutAssumptions(intake: WorkoutIntake, candidates: CompactExercise[]) {
-  const fallback = `Got it. I’ll build this around ${intake.goal ?? "boxing conditioning"}, using ${intake.equipment.join(", ") || "the equipment you listed"} for ${intake.timeMinutes ?? 30} minutes.`;
+  const fallback = `Got it. I’ll build a ${intake.timeMinutes ?? 30}-minute ${intake.sessionBias ?? "mixed"} session around ${intake.goal ?? "boxing conditioning"}, using ${intake.equipment.join(", ") || "the kit you listed"}. I’ll keep it boxing-relevant with prep, main work, conditioning or core, and a sensible finish.`;
   return openAiTextStream(workoutAssumptionsPrompt(intake, candidates), fallback);
 }
 
@@ -262,26 +427,52 @@ export async function generateWorkout(intake: WorkoutIntake, candidates: Compact
 
   const fallback: GeneratedWorkout = {
     title: "Oracle Conditioning Preview",
-    summary: "A simple boxing-focused conditioning session built from available exercises.",
+    summary: "A boxing-focused session with prep, main work, and a conditioning finish from available exercises.",
     durationMinutes: intake.timeMinutes ?? 30,
     difficulty: intake.level === "beginner" || intake.level === "advanced" ? intake.level : "intermediate",
     equipment: intake.equipment,
-    blocks: [
+    blocks: ([
       {
-        type: "strength",
-        title: "Main circuit",
-        items: candidates.slice(0, 5).map((exercise) => ({
+        type: "warmup",
+        title: "Prep",
+        items: candidates.slice(0, 2).map((exercise) => ({
           exerciseId: exercise.id,
-          sets: 3,
-          reps: "8-12",
+          sets: 2,
+          reps: "8-10 controlled reps",
           durationSeconds: null,
-          restSeconds: 45,
+          restSeconds: 20,
           tempo: null,
-          coachingNote: "Move clean, stay balanced, and keep enough snap for the next round.",
+          coachingNote: "Open range, find balance, and get warm without wasting energy.",
         })),
       },
-    ],
-    safetyNotes: intake.injuriesOrConstraints && intake.injuriesOrConstraints !== "none" ? [`Respect this constraint: ${intake.injuriesOrConstraints}.`] : [],
+      {
+        type: "strength",
+        title: intake.sessionBias === "power" ? "Main power work" : "Main strength work",
+        items: candidates.slice(2, 5).map((exercise) => ({
+          exerciseId: exercise.id,
+          sets: 3,
+          reps: "6-10",
+          durationSeconds: null,
+          restSeconds: 60,
+          tempo: null,
+          coachingNote: "Move clean, brace hard, and keep the reps sharp enough to transfer to boxing.",
+        })),
+      },
+      {
+        type: "conditioning",
+        title: "Boxing engine finish",
+        items: candidates.slice(5, 8).map((exercise) => ({
+          exerciseId: exercise.id,
+          sets: 3,
+          reps: null,
+          durationSeconds: 40,
+          restSeconds: 20,
+          tempo: null,
+          coachingNote: "Work at a pace you can repeat. No hero round followed by a collapse.",
+        })),
+      },
+    ] satisfies GeneratedWorkoutBlock[]).filter((block) => block.items.length),
+    safetyNotes: intake.injuriesOrConstraints && !["none", "none stated"].includes(intake.injuriesOrConstraints.toLowerCase()) ? [`Respect this constraint: ${intake.injuriesOrConstraints}.`] : [],
     progressionNote: "If it feels too easy, add one round before making exercises harder.",
   };
 
@@ -318,9 +509,106 @@ export async function swapWorkoutExercise(intake: WorkoutIntake, workout: Genera
 }
 
 
+function itemPatchFields(operation: Extract<WorkoutEditPatchOperation, { op: "update_item" | "replace_exercise" }>) {
+  return {
+    ...(operation.exerciseId ? { exerciseId: operation.exerciseId } : {}),
+    ...("sets" in operation ? { sets: operation.sets ?? null } : {}),
+    ...("reps" in operation ? { reps: cleanString(operation.reps) } : {}),
+    ...("durationSeconds" in operation ? { durationSeconds: operation.durationSeconds ?? null } : {}),
+    ...("restSeconds" in operation ? { restSeconds: operation.restSeconds ?? null } : {}),
+    ...("tempo" in operation ? { tempo: cleanString(operation.tempo) } : {}),
+    ...("coachingNote" in operation ? { coachingNote: cleanString(operation.coachingNote) ?? "Keep it clean and boxing-relevant." } : {}),
+  } satisfies Partial<GeneratedWorkoutItem>;
+}
+
+function cleanWorkoutEditPatch(value: WorkoutEditPatch | null | undefined): WorkoutEditPatch {
+  const operations = Array.isArray(value?.operations) ? value.operations.slice(0, 20) : [];
+  return {
+    summary: cleanString(value?.summary) ?? undefined,
+    operations: operations.filter((operation): operation is WorkoutEditPatchOperation => Boolean(operation && typeof operation === "object" && "op" in operation)),
+  };
+}
+
+export function applyWorkoutEditPatch(workout: GeneratedWorkout, patch: WorkoutEditPatch, intake: WorkoutIntake) {
+  const next: GeneratedWorkout = {
+    ...workout,
+    equipment: [...workout.equipment],
+    safetyNotes: [...workout.safetyNotes],
+    blocks: workout.blocks.map((block) => ({ ...block, items: block.items.map((item) => ({ ...item })) })),
+  };
+  const warnings: string[] = [];
+
+  for (const operation of patch.operations) {
+    if (operation.op === "update_workout_meta") {
+      next.title = cleanString(operation.title) ?? next.title;
+      next.summary = cleanString(operation.summary) ?? next.summary;
+      next.durationMinutes = cleanTime(operation.durationMinutes) ?? next.durationMinutes;
+      next.difficulty = operation.difficulty === "beginner" || operation.difficulty === "intermediate" || operation.difficulty === "advanced" ? operation.difficulty : next.difficulty;
+      next.equipment = cleanEquipment(operation.equipment).length ? cleanEquipment(operation.equipment) : next.equipment;
+      next.safetyNotes = Array.isArray(operation.safetyNotes) ? operation.safetyNotes.filter((note): note is string => typeof note === "string") : next.safetyNotes;
+      next.progressionNote = cleanString(operation.progressionNote) ?? next.progressionNote;
+      continue;
+    }
+
+    const block = next.blocks[operation.blockIndex];
+    if (!block) {
+      warnings.push(`Skipped ${operation.op}: block ${operation.blockIndex} was not found.`);
+      continue;
+    }
+
+    if (operation.op === "update_block") {
+      block.title = cleanString(operation.title) ?? block.title;
+      if (["warmup", "strength", "conditioning", "core", "mobility", "cooldown"].includes(operation.type ?? "")) block.type = operation.type as GeneratedWorkout["blocks"][number]["type"];
+      continue;
+    }
+
+    if (operation.op === "remove_item") {
+      if (!block.items[operation.itemIndex]) {
+        warnings.push(`Skipped remove_item: item ${operation.itemIndex} was not found.`);
+        continue;
+      }
+      block.items.splice(operation.itemIndex, 1);
+      continue;
+    }
+
+    if (operation.op === "add_item") {
+      if (!operation.item?.exerciseId) {
+        warnings.push("Skipped add_item: missing exerciseId.");
+        continue;
+      }
+      const position = Math.max(0, Math.min(block.items.length, Number.isFinite(operation.position) ? operation.position ?? block.items.length : block.items.length));
+      block.items.splice(position, 0, {
+        exerciseId: operation.item.exerciseId,
+        sets: operation.item.sets ?? null,
+        reps: cleanString(operation.item.reps),
+        durationSeconds: operation.item.durationSeconds ?? null,
+        restSeconds: operation.item.restSeconds ?? null,
+        tempo: cleanString(operation.item.tempo),
+        coachingNote: cleanString(operation.item.coachingNote) ?? "Move clean and keep the quality high.",
+      });
+      continue;
+    }
+
+    const item = block.items[operation.itemIndex];
+    if (!item) {
+      warnings.push(`Skipped ${operation.op}: item ${operation.itemIndex} was not found.`);
+      continue;
+    }
+    Object.assign(item, itemPatchFields(operation));
+  }
+
+  return { workout: cleanWorkout(next, intake), warnings };
+}
+
+export async function createWorkoutEditPatch(intake: WorkoutIntake, workout: GeneratedWorkout, candidates: CompactExercise[], instruction: string) {
+  const generated = await openAiJson<WorkoutEditPatch>(workoutEditPrompt(intake, workout, candidates, instruction), workoutEditPatchFallback(workout));
+  return cleanWorkoutEditPatch(generated);
+}
+
 export async function editWorkoutWithInstruction(intake: WorkoutIntake, workout: GeneratedWorkout, candidates: CompactExercise[], instruction: string) {
-  const generated = await openAiJson<GeneratedWorkout>(workoutEditPrompt(intake, workout, candidates, instruction), workout);
-  return cleanWorkout(generated, intake);
+  const patch = await createWorkoutEditPatch(intake, workout, candidates, instruction);
+  const patched = applyWorkoutEditPatch(workout, patch, intake);
+  return { ...patched, patch };
 }
 
 export async function validateWorkoutExercises(workout: GeneratedWorkout, candidates: CompactExercise[]) {
@@ -495,6 +783,107 @@ export async function updateWorkoutForUser(userId: string, workoutId: string, in
   return { status: "saved", workoutId };
 }
 
+function workoutItemRow(workoutId: string, block: GeneratedWorkoutBlock, item: GeneratedWorkoutItem, orderIndex: number) {
+  return {
+    workout_id: workoutId,
+    exercise_id: item.exerciseId,
+    order_index: orderIndex,
+    block_type: block.type,
+    block_title: block.title,
+    sets: item.sets,
+    reps: item.reps,
+    duration_seconds: item.durationSeconds,
+    rest_seconds: item.restSeconds,
+    tempo: item.tempo,
+    coaching_note: item.coachingNote,
+  };
+}
+
+export async function updateWorkoutForUserWithPatch(userId: string, workoutId: string, intake: WorkoutIntake, before: GeneratedWorkout, after: GeneratedWorkout, patch: WorkoutEditPatch): Promise<WorkoutPersistence> {
+  const supabase = getServerSupabaseClient() as unknown as AuthLikeSupabase;
+
+  const { error: workoutError } = await supabase
+    .from("workouts")
+    .update({
+      title: after.title,
+      goal: intake.goal,
+      duration_minutes: after.durationMinutes,
+      difficulty: after.difficulty,
+      equipment: after.equipment,
+      intake_summary: JSON.stringify(intake),
+      ai_model: workoutModel(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", workoutId)
+    .eq("user_id", userId);
+
+  if (workoutError) return { status: "preview_only", reason: `Workout update failed: ${workoutError.message}` };
+
+  for (const operation of patch.operations) {
+    if (operation.op === "update_workout_meta") continue;
+
+    const block = after.blocks[operation.blockIndex];
+    if (!block) continue;
+
+    if (operation.op === "update_block") {
+      const ids = block.items.map((item) => item.itemId).filter(Boolean);
+      if (ids.length) {
+        const { error } = await supabase.from("workout_items").update({ block_type: block.type, block_title: block.title }).in("id", ids).eq("workout_id", workoutId);
+        if (error) return { status: "preview_only", reason: `Block patch failed: ${error.message}` };
+      }
+      continue;
+    }
+
+    if (operation.op === "remove_item") {
+      const itemId = before.blocks[operation.blockIndex]?.items[operation.itemIndex]?.itemId;
+      if (!itemId) return { status: "preview_only", reason: "Patch could not remove an unsaved workout item." };
+      const { error } = await supabase.from("workout_items").delete().eq("id", itemId).eq("workout_id", workoutId);
+      if (error) return { status: "preview_only", reason: `Item removal patch failed: ${error.message}` };
+      continue;
+    }
+
+    if (operation.op === "add_item") {
+      const requestedPosition = Number.isFinite(operation.position) ? operation.position ?? block.items.length - 1 : block.items.length - 1;
+      const position = Math.max(0, Math.min(Math.max(0, block.items.length - 1), requestedPosition));
+      const item = block.items[position];
+      if (!item) continue;
+      const { error } = await supabase.from("workout_items").insert(workoutItemRow(workoutId, block, item, operation.blockIndex * 100 + position));
+      if (error) return { status: "preview_only", reason: `Item add patch failed: ${error.message}` };
+      continue;
+    }
+
+    const item = block.items[operation.itemIndex];
+    const beforeItemId = before.blocks[operation.blockIndex]?.items[operation.itemIndex]?.itemId;
+    if (beforeItemId && item?.itemId !== beforeItemId) return { status: "preview_only", reason: "Patch validation changed the target item; falling back to full workout update." };
+    if (!item?.itemId) return { status: "preview_only", reason: "Patch could not update an unsaved workout item." };
+    const { error } = await supabase
+      .from("workout_items")
+      .update({
+        exercise_id: item.exerciseId,
+        sets: item.sets,
+        reps: item.reps,
+        duration_seconds: item.durationSeconds,
+        rest_seconds: item.restSeconds,
+        tempo: item.tempo,
+        coaching_note: item.coachingNote,
+        block_type: block.type,
+        block_title: block.title,
+      })
+      .eq("id", item.itemId)
+      .eq("workout_id", workoutId);
+    if (error) return { status: "preview_only", reason: `Item patch failed: ${error.message}` };
+  }
+
+  const persistedItems = after.blocks.flatMap((block, blockIndex) => block.items.map((item, itemIndex) => ({ item, orderIndex: blockIndex * 100 + itemIndex })));
+  for (const { item, orderIndex } of persistedItems) {
+    if (!item.itemId) continue;
+    const { error } = await supabase.from("workout_items").update({ order_index: orderIndex }).eq("id", item.itemId).eq("workout_id", workoutId);
+    if (error) return { status: "preview_only", reason: `Item ordering patch failed: ${error.message}` };
+  }
+
+  return { status: "saved", workoutId };
+}
+
 export async function loadGeneratedWorkoutForUser(userId: string, workoutId: string): Promise<GeneratedWorkout | null> {
   const supabase = getServerSupabaseClient();
   const { data, error } = await supabase
@@ -513,6 +902,7 @@ export async function loadGeneratedWorkoutForUser(userId: string, workoutId: str
     difficulty: "beginner" | "intermediate" | "advanced" | null;
     equipment: string[] | null;
     workout_items: Array<{
+      id: string;
       order_index: number | null;
       block_type: GeneratedWorkout["blocks"][number]["type"] | null;
       block_title: string | null;
@@ -533,6 +923,7 @@ export async function loadGeneratedWorkoutForUser(userId: string, workoutId: str
     const exercise = Array.isArray(item.exercises) ? item.exercises[0] : item.exercises;
     if (!blocks.has(key)) blocks.set(key, { type, title: item.block_title ?? type, items: [] });
     blocks.get(key)?.items.push({
+      itemId: item.id,
       exerciseId: exercise?.id ?? "",
       exercise: exercise ?? undefined,
       sets: item.sets,

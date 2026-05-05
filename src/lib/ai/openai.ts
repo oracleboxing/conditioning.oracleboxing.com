@@ -28,7 +28,7 @@ type StreamChunk = {
 };
 
 export function workoutModel() {
-  return process.env.OPENAI_WORKOUT_MODEL ?? "gpt-4o-mini";
+  return process.env.OPENAI_WORKOUT_MODEL ?? "gpt-5.4-mini";
 }
 
 export async function openAiJson<T>(messages: ChatMessage[], fallback: T): Promise<T> {
@@ -39,7 +39,7 @@ export async function openAiJson<T>(messages: ChatMessage[], fallback: T): Promi
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 18000);
+  const timeout = setTimeout(() => controller.abort(), 60000);
 
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -93,7 +93,7 @@ export async function* openAiTextStream(messages: ChatMessage[], fallback: strin
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 22000);
+  const timeout = setTimeout(() => controller.abort(), 60000);
 
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {

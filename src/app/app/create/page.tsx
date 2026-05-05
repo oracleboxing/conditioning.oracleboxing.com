@@ -10,6 +10,7 @@ type StreamEvent =
   | { type: "question"; message: string; questions: string[] }
   | { type: "token"; content: string }
   | { type: "status"; message: string }
+  | { type: "debug"; label: string; data: unknown }
   | { type: "workout"; workout: GeneratedWorkout; warnings: string[]; persistence?: WorkoutPersistence }
   | { type: "done" }
   | { type: "error"; message: string };
@@ -151,6 +152,31 @@ function WorkoutPreview({
   );
 }
 
+function DebugPanel({
+  sessionId,
+  intake,
+  persistence,
+  warnings,
+  status,
+  events,
+}: {
+  sessionId: string | null;
+  intake: WorkoutIntake | null;
+  persistence: WorkoutPersistence | null;
+  warnings: string[];
+  status: string | null;
+  events: Array<{ label: string; data: unknown; at: string }>;
+}) {
+  return (
+    <details className="rounded-2xl border border-zinc-200 bg-zinc-50/80 px-4 py-3 text-xs text-zinc-600">
+      <summary className="cursor-pointer select-none font-semibold text-zinc-700">Debug state</summary>
+      <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-white p-3 text-[11px] leading-5 text-zinc-700">
+        {JSON.stringify({ sessionId, persistence, warnings, status, intake, events }, null, 2)}
+      </pre>
+    </details>
+  );
+}
+
 export default function CreateWorkoutPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<WorkoutChatMessage[]>([]);
@@ -164,7 +190,9 @@ export default function CreateWorkoutPage() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [debugEvents, setDebugEvents] = useState<Array<{ label: string; data: unknown; at: string }>>([]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const showDebug = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "1";
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -249,6 +277,7 @@ export default function CreateWorkoutPage() {
         if (event.type === "session") setSessionId(event.sessionId);
         if (event.type === "intake") setIntake(event.intake);
         if (event.type === "status") setStatus(event.message);
+        if (event.type === "debug") setDebugEvents((current) => [...current.slice(-8), { label: event.label, data: event.data, at: new Date().toISOString() }]);
         if (event.type === "token") {
           assistantText += event.content;
           appendAssistant(assistantText);
@@ -281,6 +310,7 @@ export default function CreateWorkoutPage() {
     setLoading(true);
     setStatus("Thinking...");
     setError(null);
+    setDebugEvents((current) => [...current.slice(-8), { label: "submit", data: { mode: workout ? "edit" : "chat", sessionId, hasWorkout: Boolean(workout), messageCount: nextMessages.length }, at: new Date().toISOString() }]);
 
     try {
       const response = await fetch("/api/chat/workout", {
@@ -320,17 +350,17 @@ export default function CreateWorkoutPage() {
           </div>
         </section>
       ) : (
-        <section className={`mx-auto grid min-h-[calc(100vh-5rem)] w-full max-w-7xl gap-6 px-4 ${workout ? "lg:grid-cols-[minmax(0,0.9fr)_minmax(420px,1.1fr)]" : "grid-cols-1"}`}>
-          <div className="flex min-h-[calc(100vh-5rem)] flex-col">
-            <div ref={scrollRef} className="flex-1 space-y-8 overflow-y-auto pb-10 pt-10 sm:px-8">
+        <section className={`grid min-h-[calc(100vh-5rem)] w-full gap-6 px-3 sm:px-4 lg:pl-6 lg:pr-1 ${workout ? "xl:grid-cols-[minmax(420px,0.82fr)_minmax(560px,1fr)] 2xl:grid-cols-[minmax(460px,0.78fr)_minmax(680px,1fr)]" : "mx-auto max-w-4xl grid-cols-1"}`}>
+          <div className="flex min-h-[calc(100vh-5rem)] min-w-0 flex-col">
+            <div ref={scrollRef} className="flex-1 space-y-6 overflow-y-auto pb-10 pt-8 sm:px-4 lg:px-2 xl:px-4">
             {messages.map((message, index) => (
               <div key={`${message.role}-${index}`} className={message.role === "user" ? "flex justify-end" : "flex justify-start"}>
                 {message.role === "user" ? (
-                  <div className="max-w-[70%] rounded-full bg-zinc-100 px-4 py-2 text-sm leading-6 text-black">
+                  <div className="max-w-[82%] rounded-2xl bg-zinc-100 px-4 py-2 text-sm leading-6 text-black lg:max-w-xl">
                     {message.content}
                   </div>
                 ) : (
-                  <div className="max-w-3xl text-left">
+                  <div className="max-w-[92%] text-left lg:max-w-2xl">
                     <div className="whitespace-pre-wrap text-sm font-medium leading-7 text-black">{message.content}</div>
                   </div>
                 )}
@@ -344,16 +374,24 @@ export default function CreateWorkoutPage() {
               </div>
             )}
             {error && <p className="max-w-3xl rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+            {workout ? (
+              <div className="xl:hidden">
+                <WorkoutPreview workout={workout} persistence={persistence} warnings={warnings} />
+              </div>
+            ) : null}
             </div>
 
-            <div className="sticky bottom-5 z-10 mx-auto w-full max-w-3xl pb-2">
+            <div className="sticky bottom-4 z-10 mx-auto w-full max-w-2xl space-y-3 pb-2">
+              {showDebug ? <DebugPanel sessionId={sessionId} intake={intake} persistence={persistence} warnings={warnings} status={status} events={debugEvents} /> : null}
               <PromptBar input={input} loading={loading} onInput={setInput} onSubmit={handleSubmit} />
             </div>
           </div>
 
           {workout ? (
-            <aside className="hidden max-h-[calc(100vh-6rem)] overflow-y-auto py-10 lg:block">
-              <WorkoutPreview workout={workout} persistence={persistence} warnings={warnings} />
+            <aside className="hidden max-h-[calc(100vh-5rem)] overflow-y-auto py-4 pr-0 xl:block">
+              <div className="ml-auto w-full max-w-none">
+                <WorkoutPreview workout={workout} persistence={persistence} warnings={warnings} />
+              </div>
             </aside>
           ) : null}
         </section>

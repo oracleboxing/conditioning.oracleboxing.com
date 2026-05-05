@@ -159,6 +159,43 @@ function matchesMuscle(row: Pick<ExerciseRow, "structure_json" | "primary_muscle
   return wanted.some((muscle) => available.some((candidate) => candidate === muscle || candidate.includes(muscle)));
 }
 
+
+function tokenSet(values: string[]) {
+  return new Set(values.map(normalizeToken));
+}
+
+function searchScore(exercise: CompactExercise, filters: { q: string; equipment: string[]; category: string[]; muscle: string[]; movementPattern: string[]; boxingQuality: string[]; difficulty: string[] }) {
+  let score = exercise.imageUrls.length ? 20 : 0;
+  const haystack = `${exercise.title} ${exercise.category ?? ""} ${exercise.instructionsSummary ?? ""} ${exercise.sourceEquipment ?? ""}`.toLowerCase();
+
+  if (filters.q) {
+    const query = filters.q.toLowerCase();
+    if (exercise.title.toLowerCase().includes(query)) score += 25;
+    else if (haystack.includes(query)) score += 10;
+  }
+
+  if (filters.equipment.length) {
+    const wanted = tokenSet(filters.equipment);
+    const available = [...exercise.equipment, exercise.sourceEquipment ?? ""].map(normalizeToken);
+    if (available.some((item) => wanted.has(item))) score += 18;
+  }
+  if (filters.category.length && exercise.category && tokenSet(filters.category).has(normalizeToken(exercise.category))) score += 10;
+  if (filters.difficulty.length && exercise.difficulty && tokenSet(filters.difficulty).has(normalizeToken(exercise.difficulty))) score += 8;
+
+  const wantedMuscles = tokenSet(filters.muscle);
+  if (wantedMuscles.size && [...exercise.muscles.primary, ...exercise.muscles.secondary].map(normalizeToken).some((muscle) => wantedMuscles.has(muscle))) score += 14;
+
+  const wantedPatterns = tokenSet(filters.movementPattern);
+  const patternMatches = exercise.movementPatterns.map(normalizeToken).filter((pattern) => wantedPatterns.has(pattern)).length;
+  score += patternMatches * 16;
+
+  const wantedQualities = tokenSet(filters.boxingQuality);
+  const qualityMatches = exercise.boxingQualities.map(normalizeToken).filter((quality) => wantedQualities.has(quality)).length;
+  score += qualityMatches * 18;
+
+  return score;
+}
+
 function toCompactExercise(row: ExerciseRow): CompactExercise {
   const imageUrls = imageUrlsFrom(row);
   return {
@@ -224,13 +261,17 @@ export async function searchExercises(params: ExerciseSearchParams): Promise<Exe
 
   const wantedPatterns = movementPattern.map(normalizeToken);
   const wantedQualities = boxingQuality.map(normalizeToken);
+  const filters = { q, equipment, category, muscle, movementPattern, boxingQuality, difficulty };
   const filtered = (data ?? [])
     .filter((row) => matchesMuscle(row, muscle))
     .map(toCompactExercise)
     .filter((exercise) => exercise.imageUrls.length > 0)
     .filter((exercise) => !wantedPatterns.length || wantedPatterns.some((pattern) => exercise.movementPatterns.map(normalizeToken).includes(pattern)))
     .filter((exercise) => !wantedQualities.length || wantedQualities.some((quality) => exercise.boxingQualities.map(normalizeToken).includes(quality)))
-    .slice(0, limit);
+    .map((exercise) => ({ exercise, score: searchScore(exercise, filters) }))
+    .sort((a, b) => b.score - a.score || a.exercise.title.localeCompare(b.exercise.title))
+    .slice(0, limit)
+    .map(({ exercise }) => exercise);
 
   return {
     data: filtered,

@@ -19,6 +19,7 @@ import {
   streamWorkoutAssumptions,
   swapWorkoutExercise,
   updateWorkoutForUser,
+  updateWorkoutForUserWithPatch,
   validateWorkoutExercises,
 } from "@/lib/ai/workout-creator";
 import type { GeneratedWorkout, WorkoutChatMessage, WorkoutIntake } from "@/lib/ai/workout-types";
@@ -42,6 +43,7 @@ type StreamEvent =
   | { type: "question"; message: string; questions: string[] }
   | { type: "token"; content: string }
   | { type: "status"; message: string }
+  | { type: "debug"; label: string; data: unknown }
   | { type: "workout"; workout: GeneratedWorkout; warnings: string[]; persistence?: Awaited<ReturnType<typeof saveWorkoutForUser>> }
   | { type: "saved"; persistence: Awaited<ReturnType<typeof saveWorkoutForUser>> }
   | { type: "done" }
@@ -215,11 +217,17 @@ export async function POST(request: NextRequest) {
       }
       if (!currentWorkout) throw new Error("I couldn't find the workout to edit.");
 
-      send({ type: "status", message: "Updating workout..." });
+      send({ type: "status", message: "Creating workout patch..." });
       const candidates = await gatherExerciseCandidates(intake, rejectedExerciseIds);
       const edited = await editWorkoutWithInstruction(intake, currentWorkout, candidates, userMessage?.content ?? body.instruction ?? "Update the workout.");
-      const validated = await validateWorkoutExercises(edited, candidates);
-      const persistence = workoutId ? await updateWorkoutForUser(user.id, workoutId, intake, validated.workout) : await saveWorkoutForUser(user.id, intake, validated.workout);
+      send({ type: "debug", label: "workout_edit_patch", data: edited.patch });
+      const validated = await validateWorkoutExercises(edited.workout, candidates);
+      const patchWarnings = edited.warnings.length ? edited.warnings : [];
+      let persistence = workoutId ? await updateWorkoutForUserWithPatch(user.id, workoutId, intake, currentWorkout, validated.workout, edited.patch) : await saveWorkoutForUser(user.id, intake, validated.workout);
+      if (workoutId && persistence.status !== "saved") {
+        send({ type: "debug", label: "workout_edit_patch_fallback", data: persistence.reason ?? "Patch persistence failed; falling back to full workout update." });
+        persistence = await updateWorkoutForUser(user.id, workoutId, intake, validated.workout);
+      }
       const savedWorkoutId = persistence.workoutId ?? workoutId ?? null;
 
       if (sessionId) {
@@ -231,7 +239,7 @@ export async function POST(request: NextRequest) {
       }
 
       send({ type: "token", content: "Done. I updated the workout." });
-      send({ type: "workout", workout: validated.workout, warnings: validated.warnings, persistence });
+      send({ type: "workout", workout: validated.workout, warnings: [...patchWarnings, ...validated.warnings], persistence });
       send({ type: "done" });
       return;
     }

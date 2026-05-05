@@ -12,6 +12,8 @@ export async function GET(request: NextRequest) {
       equipment: searchParams.get("equipment"),
       category: searchParams.get("category"),
       muscle: searchParams.get("muscle"),
+      movementPattern: searchParams.get("movementPattern"),
+      boxingQuality: searchParams.get("boxingQuality"),
       level: searchParams.get("level"),
       difficulty: searchParams.get("difficulty"),
       limit: searchParams.get("limit"),
