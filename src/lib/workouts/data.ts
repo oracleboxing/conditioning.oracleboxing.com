@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import type { ExerciseStructureJson, Json } from "@/lib/supabase/types";
-import { mockWorkout } from "./mock";
 import type { WorkoutBlockType, WorkoutDisplay, WorkoutItem, WorkoutSection, WorkoutVisibility } from "./types";
 
 const BLOCK_COPY: Record<WorkoutBlockType, { eyebrow: string; fallbackTitle: string; description: string }> = {
