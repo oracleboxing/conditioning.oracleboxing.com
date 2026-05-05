@@ -72,42 +72,32 @@ function PromptBar({
 
 function ExerciseCard({
   item,
-  rejected,
-  disabled,
-  onReject,
 }: {
   item: GeneratedWorkout["blocks"][number]["items"][number];
-  rejected: boolean;
-  disabled: boolean;
-  onReject: () => void;
 }) {
+  const prescription = [
+    item.sets ? `${item.sets} sets` : null,
+    item.reps,
+    item.durationSeconds ? `${item.durationSeconds}s` : null,
+    item.restSeconds !== null ? `rest ${item.restSeconds}s` : null,
+    item.tempo ? `tempo ${item.tempo}` : null,
+  ].filter(Boolean).join(" · ");
+
   return (
-    <div className={`rounded-lg p-4 ${rejected ? "border border-red-400/40 bg-red-500/10" : "bg-slate-50"}`}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-base font-semibold text-slate-950">{item.exercise?.title ?? item.exerciseId}</p>
-          <p className="mt-1 text-sm leading-6 text-slate-600">{item.coachingNote}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <p className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase text-black">
-            {item.sets ? `${item.sets} sets` : item.durationSeconds ? `${item.durationSeconds}s` : "work"}
-          </p>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={onReject}
-            className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition disabled:cursor-not-allowed disabled:opacity-40 ${
-              rejected ? "border-red-300 bg-red-300 text-black" : "border-slate-300 text-slate-950 hover:bg-slate-100"
-            }`}
-          >
-            {rejected ? "Rejected" : "Swap"}
-          </button>
-        </div>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-        {item.reps && <span className="rounded-full bg-slate-100 px-3 py-1">{item.reps}</span>}
-        {item.restSeconds !== null && <span className="rounded-full bg-slate-100 px-3 py-1">Rest {item.restSeconds}s</span>}
-        {item.tempo && <span className="rounded-full bg-slate-100 px-3 py-1">Tempo {item.tempo}</span>}
+    <div className="flex gap-4 border-t border-zinc-100 py-5 first:border-t-0">
+      {item.exercise?.imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={item.exercise.imageUrl}
+          alt={item.exercise.title}
+          className="h-20 w-20 shrink-0 rounded-2xl border border-zinc-200 object-cover sm:h-24 sm:w-24"
+          loading="lazy"
+        />
+      ) : null}
+      <div className="min-w-0 flex-1">
+        <h4 className="text-base font-semibold text-black">{item.exercise?.title ?? item.exerciseId}</h4>
+        {prescription && <p className="mt-1 text-sm font-medium text-zinc-600">{prescription}</p>}
+        <p className="mt-2 text-sm leading-6 text-zinc-600">{item.coachingNote}</p>
       </div>
     </div>
   );
@@ -117,50 +107,27 @@ function WorkoutPreview({
   workout,
   persistence,
   warnings,
-  rejectedExerciseIds,
-  busy,
-  onReject,
-  onSwapRejected,
   onSave,
 }: {
   workout: GeneratedWorkout;
   persistence: WorkoutPersistence | null;
   warnings: string[];
-  rejectedExerciseIds: string[];
-  busy: boolean;
-  onReject: (exerciseId: string) => void;
-  onSwapRejected: () => void;
   onSave: () => void;
 }) {
-  const rejectedCount = rejectedExerciseIds.length;
-
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#7db7ff]">Review draft</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{workout.title}</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">{workout.summary}</p>
-        </div>
-        <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-950">
-          {persistence?.status === "saved" ? "Saved" : "Needs approval"}
-        </div>
+    <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-7">
+      <div>
+        <h2 className="text-3xl font-semibold tracking-tight text-black">{workout.title}</h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">{workout.summary}</p>
       </div>
 
       <div className="mt-7 space-y-5">
         {workout.blocks.map((block, blockIndex) => (
-          <div key={`${block.type}-${blockIndex}`} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#ff4d4d]">{block.type}</p>
-            <h3 className="mt-2 text-xl font-semibold text-slate-950">{block.title}</h3>
-            <div className="mt-4 space-y-3">
+          <div key={`${block.type}-${blockIndex}`} className="border-t border-zinc-200 pt-5 first:border-t-0 first:pt-0">
+            <h3 className="text-xl font-semibold text-black">{block.title}</h3>
+            <div className="mt-3">
               {block.items.map((item, itemIndex) => (
-                <ExerciseCard
-                  key={`${item.exerciseId}-${itemIndex}`}
-                  item={item}
-                  rejected={rejectedExerciseIds.includes(item.exerciseId)}
-                  disabled={busy || persistence?.status === "saved"}
-                  onReject={() => onReject(item.exerciseId)}
-                />
+                <ExerciseCard key={`${item.exerciseId}-${itemIndex}`} item={item} />
               ))}
             </div>
           </div>
@@ -168,7 +135,7 @@ function WorkoutPreview({
       </div>
 
       {(workout.safetyNotes.length > 0 || warnings.length > 0 || persistence?.reason) && (
-        <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
+        <div className="mt-6 text-sm leading-6 text-zinc-600">
           {[...workout.safetyNotes, ...warnings, persistence?.reason].filter(Boolean).map((note) => (
             <p key={note}>• {note}</p>
           ))}
@@ -177,22 +144,14 @@ function WorkoutPreview({
 
       <p className="mt-5 text-sm font-semibold leading-6 text-slate-600">{workout.progressionNote}</p>
 
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+      <div className="mt-6">
         <button
           type="button"
-          disabled={busy || rejectedCount === 0 || persistence?.status === "saved"}
-          onClick={onSwapRejected}
-          className="rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold uppercase tracking-wide text-slate-950 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Swap {rejectedCount || "rejected"}
-        </button>
-        <button
-          type="button"
-          disabled={busy || rejectedCount > 0 || persistence?.status === "saved"}
+          disabled={persistence?.status === "saved"}
           onClick={onSave}
-          className="rounded-full bg-[#007aff] px-5 py-3 text-sm font-semibold uppercase tracking-wide text-slate-950 transition hover:bg-[#1b8cff] disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-full bg-[#007aff] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1b8cff] disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Approve and save
+          {persistence?.status === "saved" ? "Saved" : "Approve and save"}
         </button>
       </div>
     </section>
@@ -349,40 +308,6 @@ export default function CreateWorkoutPage() {
     }
   }
 
-  async function handleSwapRejected() {
-    if (!workout || !intake || rejectedExerciseIds.length === 0 || loading) return;
-    setLoading(true);
-    setStatus("Finding better matches...");
-    setError(null);
-
-    const nextMessages: WorkoutChatMessage[] = [
-      ...messages,
-      { role: "user", content: `Swap these exercises: ${rejectedExerciseIds.join(", ")}` },
-    ];
-    setMessages(nextMessages);
-
-    try {
-      const response = await fetch("/api/chat/workout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "swap", sessionId, messages: nextMessages, intake, workout, rejectedExerciseIds, instruction: "Swap rejected exercises for better alternatives." }),
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json()) as { message?: string };
-        throw new Error(payload.message ?? "Swap failed.");
-      }
-
-      await readWorkoutStream(response, nextMessages);
-      setMessages((current) => [...current, { role: "assistant", content: "Swapped. Give this version a look before saving." }]);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Swap failed.");
-    } finally {
-      setLoading(false);
-      setStatus(null);
-    }
-  }
-
   async function handleSave() {
     if (!workout || !intake || loading) return;
     setLoading(true);
@@ -411,10 +336,6 @@ export default function CreateWorkoutPage() {
       setLoading(false);
       setStatus(null);
     }
-  }
-
-  function toggleRejected(exerciseId: string) {
-    setRejectedExerciseIds((current) => (current.includes(exerciseId) ? current.filter((id) => id !== exerciseId) : [...current, exerciseId]));
   }
 
   return (
@@ -458,10 +379,6 @@ export default function CreateWorkoutPage() {
                 workout={workout}
                 persistence={persistence}
                 warnings={warnings}
-                rejectedExerciseIds={rejectedExerciseIds}
-                busy={loading}
-                onReject={toggleRejected}
-                onSwapRejected={handleSwapRejected}
                 onSave={handleSave}
               />
             ) : null}
