@@ -57,7 +57,7 @@ export function workoutGenerationPrompt(intake: WorkoutIntake, candidates: Compa
 Create one individual S&C workout for today. Never create a weekly plan.
 
 Hard rules:
-- Use only exercise IDs from the supplied candidate list.
+- Use only the exact UUID string from the candidate id field. Do not use exercise titles, names, slugs, or invented IDs.
 - Output valid JSON only.
 - Respect injuries and constraints. If risk exists, choose safer options and explain briefly.
 - Match the available equipment. Bodyweight means no external kit.

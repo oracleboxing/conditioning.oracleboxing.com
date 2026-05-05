@@ -193,32 +193,65 @@ export async function generateWorkout(intake: WorkoutIntake, candidates: Compact
   return cleanWorkout(generated, intake);
 }
 
+function keyForExerciseLookup(value: string | null | undefined) {
+  return (value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function uuidLike(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 export async function validateWorkoutExercises(workout: GeneratedWorkout, candidates: CompactExercise[]) {
   const candidateById = new Map(candidates.map((exercise) => [exercise.id, exercise]));
-  const selectedIds = [...new Set(workout.blocks.flatMap((block) => block.items.map((item) => item.exerciseId)).filter(Boolean))];
+  const candidateByLooseKey = new Map<string, CompactExercise>();
 
-  if (!selectedIds.length) return { workout, warnings: ["No exercises were selected."] };
+  for (const exercise of candidates) {
+    candidateByLooseKey.set(keyForExerciseLookup(exercise.id), exercise);
+    candidateByLooseKey.set(keyForExerciseLookup(exercise.slug), exercise);
+    candidateByLooseKey.set(keyForExerciseLookup(exercise.title), exercise);
+  }
+
+  const warnings: string[] = [];
+  const normalizedBlocks: GeneratedWorkoutBlock[] = workout.blocks
+    .map((block) => ({
+      ...block,
+      items: block.items
+        .map((item): GeneratedWorkoutItem | null => {
+          const matched = candidateById.get(item.exerciseId) ?? candidateByLooseKey.get(keyForExerciseLookup(item.exerciseId));
+          if (!matched) {
+            warnings.push(`Removed invalid exercise: ${item.exerciseId}`);
+            return null;
+          }
+          return { ...item, exerciseId: matched.id, exercise: matched };
+        })
+        .filter((item): item is GeneratedWorkoutItem => Boolean(item)),
+    }))
+    .filter((block) => block.items.length);
+
+  const selectedIds = [...new Set(normalizedBlocks.flatMap((block) => block.items.map((item) => item.exerciseId)).filter(uuidLike))];
+
+  if (!selectedIds.length) return { workout: { ...workout, blocks: normalizedBlocks }, warnings: [...warnings, "No valid Supabase exercise IDs were selected."] };
 
   const supabase = getServerSupabaseClient();
-  const { data, error } = await supabase.from("exercises").select("id,title,slug,category,summary,description,instructions_json,equipment_tags,difficulty,structure_json,is_active").in("id", selectedIds).eq("is_active", true);
+  const { data, error } = await supabase.from("exercises").select("id").in("id", selectedIds).eq("is_active", true);
 
   if (error) {
-    throw new Error(`Could not validate generated exercises: ${error.message}`);
+    return { workout: { ...workout, blocks: normalizedBlocks }, warnings: [...warnings, `Exercise validation warning: ${error.message}`] };
   }
 
   const rows = (data ?? []) as Array<{ id: string }>;
   const validIds = new Set(rows.map((row) => row.id));
-  const warnings: string[] = [];
-  const blocks: GeneratedWorkoutBlock[] = workout.blocks
+  const blocks: GeneratedWorkoutBlock[] = normalizedBlocks
     .map((block) => ({
       ...block,
-      items: block.items
-        .filter((item) => {
-          const valid = validIds.has(item.exerciseId) && candidateById.has(item.exerciseId);
-          if (!valid) warnings.push(`Removed invalid exercise ID: ${item.exerciseId}`);
-          return valid;
-        })
-        .map((item): GeneratedWorkoutItem => ({ ...item, exercise: candidateById.get(item.exerciseId) })),
+      items: block.items.filter((item) => {
+        const valid = validIds.has(item.exerciseId);
+        if (!valid) warnings.push(`Removed unavailable exercise: ${item.exercise?.title ?? item.exerciseId}`);
+        return valid;
+      }),
     }))
     .filter((block) => block.items.length);
 
