@@ -71,8 +71,15 @@ function cleanRejectedIds(value: unknown) {
 }
 
 function questionMessage(questions: string[]) {
-  if (questions.length === 1) return questions[0];
   return questions.join("\n");
+}
+
+async function streamAssistantMessage(send: (event: StreamEvent) => void, message: string) {
+  const chunks = message.match(/.{1,24}(\s|$)/g) ?? [message];
+  for (const chunk of chunks) {
+    send({ type: "token", content: chunk });
+    await new Promise((resolve) => setTimeout(resolve, 12));
+  }
 }
 
 function latestUserMessage(messages: WorkoutChatMessage[]) {
@@ -185,8 +192,10 @@ export async function POST(request: NextRequest) {
     const chatWarnings: string[] = [];
 
     if (!userMessage && mode === "chat") {
-      const questions = ["What do you want this workout to achieve today?"];
-      send({ type: "question", message: questionMessage(questions), questions });
+      const questions = ["What do you want to train today? Give me the target, time, equipment, and anything to work around."];
+      const message = questionMessage(questions);
+      await streamAssistantMessage(send, message);
+      send({ type: "question", message: "", questions });
       send({ type: "done" });
       return;
     }
@@ -268,7 +277,8 @@ export async function POST(request: NextRequest) {
         if (updateWarning) chatWarnings.push(updateWarning);
       }
       send({ type: "intake", intake: extracted });
-      send({ type: "question", message: assistantMessage, questions });
+      await streamAssistantMessage(send, assistantMessage);
+      send({ type: "question", message: "", questions });
       send({ type: "done" });
       return;
     }

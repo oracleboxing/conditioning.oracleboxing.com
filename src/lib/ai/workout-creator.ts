@@ -132,36 +132,23 @@ function heuristicExtract(message: string): Partial<WorkoutIntake> {
 }
 
 export function missingIntakeQuestions(intake: WorkoutIntake) {
-  const questions: string[] = [];
-  if (!intake.goal) questions.push("What do you want this session to actually improve today: gas tank, strength, punch power, footwork, mobility, or something else?");
-  if (!intake.equipment.length) {
-    questions.push("What kit have you got access to: full gym, dumbbells, bands, bench, cables, cardio machines, bag, open floor space, or bodyweight only?");
+  const missing: string[] = [];
+
+  if (!intake.goal) missing.push("what you want to train");
+  if (!intake.timeMinutes) missing.push("how long you have");
+  if (!intake.equipment.length) missing.push("what equipment you can use");
+  if (!intake.injuriesOrConstraints) missing.push("anything I should work around");
+
+  if (missing.length) {
+    return [
+      `Give me ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? ", and " + missing[3] : ""}. Short answer is fine.`,
+    ];
   }
-  if (!intake.timeMinutes) questions.push("How long have you got, and do you want it to feel controlled, hard, or nasty in a useful way?");
 
-  const hasCriticalGap = questions.length > 0;
-  const contextQuestions = [
-    !intake.trainingEnvironment ? "Where are you training: home, hotel, commercial gym, boxing gym, or outside?" : null,
-    !intake.recentTrainingOrFatigue ? "How are you feeling from recent training: fresh, sore, tired, or carrying heavy fatigue?" : null,
-    !intake.injuriesOrConstraints ? "Any injuries, pain, movements to be careful with, or are we clear?" : null,
-    !intake.preferredIntensity ? "How hard should this feel today: easy, moderate, hard, or brutal but still sensible?" : null,
-    !intake.boxingFocus ? "What boxing demand should this support most: feet, punch power, shoulder durability, rotation, core, or engine?" : null,
-    !intake.whatToAvoid ? "Anything you hate or want to avoid today: jumping, running, burpees, overhead work, heavy legs, floor work?" : null,
-    !intake.sessionBias || intake.sessionBias === "unknown" ? "Should it lean strength, power, conditioning, mobility, or a balanced mix?" : null,
-  ].filter((question): question is string => Boolean(question));
+  if (!intake.preferredIntensity && !intake.recentTrainingOrFatigue) {
+    return ["Last check: should this be controlled, hard, or low-impact today?"];
+  }
 
-  if (hasCriticalGap) return [...questions, ...contextQuestions].slice(0, 5);
-
-  const usefulContextCount = [
-    intake.trainingEnvironment,
-    intake.recentTrainingOrFatigue,
-    intake.injuriesOrConstraints,
-    intake.preferredIntensity,
-    intake.whatToAvoid,
-    intake.sessionBias && intake.sessionBias !== "unknown" ? intake.sessionBias : null,
-  ].filter(Boolean).length;
-
-  if (usefulContextCount < 3) return contextQuestions.slice(0, 4);
   return [];
 }
 

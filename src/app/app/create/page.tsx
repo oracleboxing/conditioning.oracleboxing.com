@@ -292,7 +292,7 @@ function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId
           appendAssistant(assistantText);
         }
         if (event.type === "question") {
-          appendAssistant(event.message);
+          if (event.message) appendAssistant(event.message);
           setStatus(null);
         }
         if (event.type === "workout") {
