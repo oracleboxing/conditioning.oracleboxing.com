@@ -256,6 +256,7 @@ function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId
     let buffer = "";
     let assistantIndex: number | null = null;
     let assistantText = "";
+    let streamedSessionId: string | null = null;
 
     const appendAssistant = (content: string) => {
       if (assistantIndex === null) {
@@ -278,10 +279,8 @@ function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId
         const event = JSON.parse(line) as StreamEvent;
 
         if (event.type === "session") {
+          streamedSessionId = event.sessionId;
           setSessionId(event.sessionId);
-          if (initialSessionId !== event.sessionId) {
-            router.replace(`/app/create?sessionId=${event.sessionId}`, { scroll: false });
-          }
         }
         if (event.type === "intake") setIntake(event.intake);
         if (event.type === "status") setStatus(event.message);
@@ -304,6 +303,10 @@ function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId
         }
         if (event.type === "error") throw new Error(event.message);
       }
+    }
+
+    if (streamedSessionId && initialSessionId !== streamedSessionId) {
+      router.replace(`/app/create?sessionId=${streamedSessionId}`, { scroll: false });
     }
   }
 
