@@ -8,22 +8,41 @@ import {
   type AuthSupabase,
 } from "@/lib/ai/chat-history";
 import {
+  applyWorkoutAssumptions,
   extractIntake,
   gatherExerciseCandidates,
   generateWorkout,
   missingIntakeQuestions,
   saveWorkoutForUser,
+  streamWorkoutAssumptions,
+  swapWorkoutExercise,
   validateWorkoutExercises,
 } from "@/lib/ai/workout-creator";
-import type { WorkoutChatMessage, WorkoutIntake } from "@/lib/ai/workout-types";
+import type { GeneratedWorkout, WorkoutChatMessage, WorkoutIntake } from "@/lib/ai/workout-types";
 import { createAuthClient } from "@/lib/supabase/auth-server";
+
 export const dynamic = "force-dynamic";
 
 type RequestBody = {
+  mode?: "chat" | "swap" | "save";
   sessionId?: string | null;
   messages?: WorkoutChatMessage[];
   intake?: Partial<WorkoutIntake>;
+  workout?: GeneratedWorkout | null;
+  rejectedExerciseIds?: string[];
+  instruction?: string;
 };
+
+type StreamEvent =
+  | { type: "session"; sessionId: string; warnings: string[] }
+  | { type: "intake"; intake: WorkoutIntake }
+  | { type: "question"; message: string; questions: string[] }
+  | { type: "token"; content: string }
+  | { type: "status"; message: string }
+  | { type: "workout"; workout: GeneratedWorkout; warnings: string[] }
+  | { type: "saved"; persistence: Awaited<ReturnType<typeof saveWorkoutForUser>> }
+  | { type: "done" }
+  | { type: "error"; message: string };
 
 function cleanSessionId(value: unknown) {
   return typeof value === "string" && /^[0-9a-f-]{32,36}$/i.test(value) ? value : null;
@@ -38,7 +57,12 @@ function cleanMessages(messages: unknown): WorkoutChatMessage[] {
       return (candidate.role === "user" || candidate.role === "assistant") && typeof candidate.content === "string";
     })
     .map((message) => ({ role: message.role, content: message.content.slice(0, 2000) }))
-    .slice(-16);
+    .slice(-20);
+}
+
+function cleanRejectedIds(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.length < 80).slice(0, 40);
 }
 
 function questionMessage(questions: string[]) {
@@ -57,6 +81,35 @@ async function authenticatedSupabase() {
   } = await supabase.auth.getUser();
 
   return { supabase, user };
+}
+
+function workoutStream(producer: (send: (event: StreamEvent) => void) => Promise<void>) {
+  const encoder = new TextEncoder();
+
+  return new Response(
+    new ReadableStream({
+      async start(controller) {
+        const send = (event: StreamEvent) => {
+          controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+        };
+
+        try {
+          await producer(send);
+        } catch (error) {
+          send({ type: "error", message: error instanceof Error ? error.message : "Workout chat failed." });
+        } finally {
+          controller.close();
+        }
+      },
+    }),
+    {
+      headers: {
+        "Content-Type": "application/x-ndjson; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
+      },
+    },
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -85,73 +138,118 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const { supabase, user } = await authenticatedSupabase();
+  const { supabase, user } = await authenticatedSupabase();
 
-    if (!user) {
-      return Response.json({ error: "unauthorized", message: "Sign in before creating workouts." }, { status: 401 });
+  if (!user) {
+    return Response.json({ error: "unauthorized", message: "Sign in before creating workouts." }, { status: 401 });
+  }
+
+  const body = (await request.json()) as RequestBody;
+  const mode = body.mode ?? "chat";
+  const messages = cleanMessages(body.messages);
+  const userMessage = latestUserMessage(messages);
+  let sessionId = cleanSessionId(body.sessionId);
+  const rejectedExerciseIds = cleanRejectedIds(body.rejectedExerciseIds);
+
+  if (mode === "save") {
+    if (!body.workout || !body.intake) {
+      return Response.json({ error: "missing_workout", message: "Generate a workout before saving." }, { status: 400 });
     }
 
-    const body = (await request.json()) as RequestBody;
-    const messages = cleanMessages(body.messages);
-    const userMessage = latestUserMessage(messages);
-    let sessionId = cleanSessionId(body.sessionId);
+    const intake = applyWorkoutAssumptions(body.intake as WorkoutIntake);
+    const candidates = await gatherExerciseCandidates(intake, rejectedExerciseIds);
+    const validated = await validateWorkoutExercises(body.workout, candidates);
+    const persistence = await saveWorkoutForUser(user.id, intake, validated.workout);
+
+    if (sessionId) {
+      const assistantMessage = persistence.status === "saved" ? "Workout approved and saved." : "Workout approved, but saved as preview only.";
+      await persistChatMessage(supabase, user.id, sessionId, { role: "assistant", content: assistantMessage }, { type: "workout", workoutId: persistence.workoutId ?? null });
+      await updateChatSession(supabase, user.id, sessionId, {
+        intake,
+        title: validated.workout.title,
+        status: persistence.status === "saved" ? "completed" : "active",
+        workoutId: persistence.workoutId ?? null,
+      });
+    }
+
+    return Response.json({ type: "saved", workout: validated.workout, warnings: validated.warnings, persistence });
+  }
+
+  return workoutStream(async (send) => {
     const chatWarnings: string[] = [];
 
-    if (!userMessage) {
-      const questions = ["What do you want this workout to achieve today?", "What equipment have you got?"];
-      return Response.json({ type: "question", sessionId, message: questionMessage(questions), questions, intake: body.intake ?? null });
+    if (!userMessage && mode === "chat") {
+      const questions = ["What do you want this workout to achieve today?"];
+      send({ type: "question", message: questionMessage(questions), questions });
+      send({ type: "done" });
+      return;
     }
 
-    const session = await ensureChatSession(supabase, user.id, sessionId, userMessage.content);
-    sessionId = session.sessionId;
-    if (session.warning) chatWarnings.push(session.warning);
+    if (userMessage) {
+      const session = await ensureChatSession(supabase, user.id, sessionId, userMessage.content);
+      sessionId = session.sessionId;
+      if (session.warning) chatWarnings.push(session.warning);
+      if (sessionId) send({ type: "session", sessionId, warnings: chatWarnings });
 
-    const userPersistWarning = await persistChatMessage(supabase, user.id, sessionId, userMessage, { source: "workout_creator" });
-    if (userPersistWarning) chatWarnings.push(userPersistWarning);
+      const userPersistWarning = await persistChatMessage(supabase, user.id, sessionId, userMessage, { source: "workout_creator" });
+      if (userPersistWarning) chatWarnings.push(userPersistWarning);
+    }
 
-    const intake = await extractIntake(messages, body.intake);
-    const questions = missingIntakeQuestions(intake);
-    const title = titleFromIntake(intake, userMessage.content);
+    if (mode === "swap") {
+      if (!body.workout || !body.intake) throw new Error("Generate a draft before swapping exercises.");
+      const intake = applyWorkoutAssumptions(body.intake as WorkoutIntake);
+      const candidates = await gatherExerciseCandidates(intake, rejectedExerciseIds);
+      send({ type: "status", message: "Searching Supabase for cleaner swaps..." });
+      const swapped = await swapWorkoutExercise(intake, body.workout, candidates, rejectedExerciseIds, body.instruction ?? "Swap rejected exercises.");
+      const validated = await validateWorkoutExercises(swapped, candidates);
+      send({ type: "workout", workout: validated.workout, warnings: validated.warnings });
+      send({ type: "done" });
+      return;
+    }
+
+    const extracted = await extractIntake(messages, body.intake);
+    const questions = missingIntakeQuestions(extracted);
 
     if (questions.length) {
       const assistantMessage = questionMessage(questions);
-      const assistantPersistWarning = await persistChatMessage(supabase, user.id, sessionId, { role: "assistant", content: assistantMessage }, { type: "question" });
+      if (sessionId) {
+        const title = titleFromIntake(extracted, userMessage?.content ?? "Workout chat");
+        const assistantPersistWarning = await persistChatMessage(supabase, user.id, sessionId, { role: "assistant", content: assistantMessage }, { type: "question" });
+        const updateWarning = await updateChatSession(supabase, user.id, sessionId, { intake: extracted, title, status: "active" });
+        if (assistantPersistWarning) chatWarnings.push(assistantPersistWarning);
+        if (updateWarning) chatWarnings.push(updateWarning);
+      }
+      send({ type: "intake", intake: extracted });
+      send({ type: "question", message: assistantMessage, questions });
+      send({ type: "done" });
+      return;
+    }
+
+    const intake = applyWorkoutAssumptions(extracted);
+    send({ type: "intake", intake });
+    send({ type: "status", message: "Searching uploaded exercise library..." });
+    const candidates = await gatherExerciseCandidates(intake, rejectedExerciseIds);
+    if (!candidates.length) throw new Error("No matching uploaded free-exercise-db exercises were found.");
+
+    let streamedMessage = "";
+    for await (const token of await streamWorkoutAssumptions(intake, candidates)) {
+      streamedMessage += token;
+      send({ type: "token", content: token });
+    }
+
+    send({ type: "status", message: "Building a review draft..." });
+    const workout = await generateWorkout(intake, candidates, rejectedExerciseIds);
+    const validated = await validateWorkoutExercises(workout, candidates);
+
+    if (sessionId) {
+      const title = titleFromIntake(intake, userMessage?.content ?? validated.workout.title);
+      const assistantPersistWarning = await persistChatMessage(supabase, user.id, sessionId, { role: "assistant", content: streamedMessage || "I built a draft workout for review." }, { type: "workout_draft" });
       const updateWarning = await updateChatSession(supabase, user.id, sessionId, { intake, title, status: "active" });
       if (assistantPersistWarning) chatWarnings.push(assistantPersistWarning);
       if (updateWarning) chatWarnings.push(updateWarning);
-
-      return Response.json({ type: "question", sessionId, message: assistantMessage, questions, intake, chatWarnings });
     }
 
-    const candidates = await gatherExerciseCandidates(intake);
-    const workout = await generateWorkout(intake, candidates);
-    const validated = await validateWorkoutExercises(workout, candidates);
-    const persistence = await saveWorkoutForUser(user.id, intake, validated.workout);
-    const assistantMessage = persistence.status === "saved" ? "Workout built and saved." : "Workout built as a preview.";
-
-    const assistantPersistWarning = await persistChatMessage(supabase, user.id, sessionId, { role: "assistant", content: assistantMessage }, { type: "workout", workoutId: persistence.workoutId ?? null });
-    const updateWarning = await updateChatSession(supabase, user.id, sessionId, {
-      intake,
-      title: validated.workout.title,
-      status: persistence.status === "saved" ? "completed" : "active",
-      workoutId: persistence.workoutId ?? null,
-    });
-    if (assistantPersistWarning) chatWarnings.push(assistantPersistWarning);
-    if (updateWarning) chatWarnings.push(updateWarning);
-
-    return Response.json({
-      type: "workout",
-      sessionId,
-      message: assistantMessage,
-      intake,
-      workout: validated.workout,
-      warnings: validated.warnings,
-      chatWarnings,
-      persistence,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Workout chat failed.";
-    return Response.json({ error: "workout_chat_failed", message }, { status: 500 });
-  }
+    send({ type: "workout", workout: validated.workout, warnings: validated.warnings });
+    send({ type: "done" });
+  });
 }

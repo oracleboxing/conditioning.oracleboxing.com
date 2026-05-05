@@ -1,5 +1,5 @@
 import type { CompactExercise } from "@/lib/exercises/search";
-import type { WorkoutIntake } from "@/lib/ai/workout-types";
+import type { GeneratedWorkout, WorkoutIntake } from "@/lib/ai/workout-types";
 
 export const INTAKE_FIELDS = [
   "goal",
@@ -26,10 +26,11 @@ Fields:
 
 Rules:
 - Merge new information with existing intake.
-- Do not invent missing values.
+- Do not invent specific missing values.
 - Keep arrays compact.
 - If the user says no injuries, store "none".
-- If time is written as "half an hour", return 30.`,
+- If time is written as "half an hour", return 30.
+- If the user implies no kit, home workout, hotel room, or no gym, use ["bodyweight"].`,
     },
     {
       role: "user" as const,
@@ -38,7 +39,36 @@ Rules:
   ];
 }
 
-export function workoutGenerationPrompt(intake: WorkoutIntake, candidates: CompactExercise[]) {
+export function workoutAssumptionsPrompt(intake: WorkoutIntake, candidates: CompactExercise[]) {
+  const candidateSample = candidates.slice(0, 18).map((exercise) => ({
+    title: exercise.title,
+    equipment: exercise.equipment,
+    category: exercise.category,
+    muscles: exercise.muscles,
+    difficulty: exercise.difficulty,
+  }));
+
+  return [
+    {
+      role: "system" as const,
+      content: `You are Oracle Performance Lab inside a ChatGPT-style workout builder.
+
+Reply like a sharp boxing S&C coach. Explain how you are reading the user's goal and the assumptions you will use. Keep it short, practical, and conversational.
+
+Rules:
+- Mention that exercises will come from the uploaded Supabase free-exercise-db library.
+- Do not claim the workout is saved yet.
+- Do not list a full workout. You are about to build a review draft.
+- If details are missing, state sensible assumptions instead of interrogating the user.`,
+    },
+    {
+      role: "user" as const,
+      content: JSON.stringify({ intake, candidateSample }),
+    },
+  ];
+}
+
+export function workoutGenerationPrompt(intake: WorkoutIntake, candidates: CompactExercise[], rejectedExerciseIds: string[] = []) {
   const compactCandidates = candidates.map((exercise) => ({
     id: exercise.id,
     title: exercise.title,
@@ -58,7 +88,7 @@ Create one individual S&C workout for today. Never create a weekly plan.
 
 Hard rules:
 - Use only the exact UUID string from the candidate id field. Do not use exercise titles, names, slugs, or invented IDs.
-- Do not rename exercises. The UI will display the database title attached to the UUID.
+- Do not rename exercises. Exercise names displayed to the user must be database titles only, attached by the UI from the UUID.
 - Output valid JSON only.
 - Respect injuries and constraints. If risk exists, choose safer options and explain briefly.
 - Match the available equipment. Bodyweight means no external kit.
@@ -67,6 +97,8 @@ Hard rules:
 - Do not include medical claims, rehab prescriptions, or maximal lifting.
 - Use clear coaching notes that sound like a sharp boxing S&C coach, not generic fitness sludge.
 - Every exercise must come from the uploaded free-exercise-db candidate list. Nothing custom, no boxing drills, no made-up hybrid movements.
+- Avoid rejectedExerciseIds unless no safe alternative exists.
+- Diversify patterns rather than returning the same obvious exercises every time.
 
 JSON shape:
 {
@@ -98,7 +130,38 @@ JSON shape:
     },
     {
       role: "user" as const,
-      content: JSON.stringify({ intake, candidates: compactCandidates }),
+      content: JSON.stringify({ intake, candidates: compactCandidates, rejectedExerciseIds }),
+    },
+  ];
+}
+
+export function workoutSwapPrompt(intake: WorkoutIntake, workout: GeneratedWorkout, candidates: CompactExercise[], rejectedExerciseIds: string[], instruction: string) {
+  const compactCandidates = candidates.map((exercise) => ({
+    id: exercise.id,
+    title: exercise.title,
+    equipment: exercise.equipment,
+    category: exercise.category,
+    muscles: exercise.muscles,
+    difficulty: exercise.difficulty,
+    summary: exercise.instructionsSummary,
+  }));
+
+  return [
+    {
+      role: "system" as const,
+      content: `You adjust a draft Oracle boxing S&C workout after user review.
+
+Return the full updated workout JSON only.
+
+Hard rules:
+- Use only exact candidate UUIDs.
+- Exercise names displayed to the user must be database titles only, attached by the UI from the UUID.
+- Replace rejected exercises with sensible alternatives from candidates.
+- Keep the workout coherent, same JSON shape, and do not invent exercises.`,
+    },
+    {
+      role: "user" as const,
+      content: JSON.stringify({ intake, workout, candidates: compactCandidates, rejectedExerciseIds, instruction }),
     },
   ];
 }

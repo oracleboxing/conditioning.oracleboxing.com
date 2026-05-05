@@ -1,7 +1,7 @@
 import { searchExercises, type CompactExercise } from "@/lib/exercises/search";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
-import { intakeExtractionPrompt, workoutGenerationPrompt } from "@/lib/ai/workout-prompts";
-import { openAiJson } from "@/lib/ai/openai";
+import { intakeExtractionPrompt, workoutAssumptionsPrompt, workoutGenerationPrompt, workoutSwapPrompt } from "@/lib/ai/workout-prompts";
+import { openAiJson, openAiTextStream, workoutModel } from "@/lib/ai/openai";
 import type {
   GeneratedWorkout,
   GeneratedWorkoutBlock,
@@ -88,12 +88,20 @@ function heuristicExtract(message: string): Partial<WorkoutIntake> {
 export function missingIntakeQuestions(intake: WorkoutIntake) {
   const missing: string[] = [];
   if (!intake.goal) missing.push("What do you want this workout to achieve today?");
-  if (!intake.equipment.length) missing.push("What equipment have you got, or is it bodyweight only?");
+  if (!intake.equipment.length) missing.push("What equipment have you got, or should I assume bodyweight?");
   if (!intake.timeMinutes) missing.push("How long have you got?");
-  if (!intake.level || intake.level === "unknown") missing.push("What level should I pitch it at, beginner, intermediate or advanced?");
-  if (!intake.injuriesOrConstraints) missing.push("Any injuries, pain or movements to avoid? Say none if you’re clear.");
-  if (!intake.boxingFocus) missing.push("What boxing focus should it support, gas tank, footwork, punching power, rotation, shoulders, or general?");
-  return missing.slice(0, 2);
+  return missing.slice(0, 1);
+}
+
+export function applyWorkoutAssumptions(intake: WorkoutIntake): WorkoutIntake {
+  return {
+    ...intake,
+    equipment: intake.equipment.length ? intake.equipment : ["bodyweight"],
+    timeMinutes: intake.timeMinutes ?? 30,
+    level: intake.level && intake.level !== "unknown" ? intake.level : "intermediate",
+    injuriesOrConstraints: intake.injuriesOrConstraints ?? "none stated",
+    boxingFocus: intake.boxingFocus ?? "general boxing conditioning",
+  };
 }
 
 export async function extractIntake(messages: WorkoutChatMessage[], existingIntake?: Partial<WorkoutIntake>) {
@@ -124,7 +132,20 @@ function equipmentParam(intake: WorkoutIntake) {
   return equipment.join(",") || undefined;
 }
 
-export async function gatherExerciseCandidates(intake: WorkoutIntake) {
+function stableShuffle<T extends { id: string }>(items: T[], seed: string) {
+  const scored = items.map((item) => {
+    let hash = 0;
+    const source = `${seed}:${item.id}`;
+    for (let index = 0; index < source.length; index += 1) {
+      hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
+    }
+    return { item, score: hash };
+  });
+
+  return scored.sort((a, b) => a.score - b.score).map(({ item }) => item);
+}
+
+export async function gatherExerciseCandidates(intake: WorkoutIntake, rejectedExerciseIds: string[] = []) {
   const equipment = equipmentParam(intake);
   const levels = intake.level && intake.level !== "unknown" ? intake.level : undefined;
   const candidateMap = new Map<string, CompactExercise>();
@@ -143,7 +164,14 @@ export async function gatherExerciseCandidates(intake: WorkoutIntake) {
     fallback.data.forEach((exercise) => candidateMap.set(exercise.id, exercise));
   }
 
-  return [...candidateMap.values()].slice(0, 80);
+  const rejected = new Set(rejectedExerciseIds);
+  const seed = `${intake.goal ?? ""}|${intake.boxingFocus ?? ""}|${intake.equipment.join(",")}|${new Date().toISOString().slice(0, 10)}`;
+  return stableShuffle([...candidateMap.values()].filter((exercise) => !rejected.has(exercise.id)), seed).slice(0, 80);
+}
+
+export async function streamWorkoutAssumptions(intake: WorkoutIntake, candidates: CompactExercise[]) {
+  const fallback = `I’m reading this as ${intake.goal ?? "a boxing conditioning session"}. I’ll assume ${intake.timeMinutes ?? 30} minutes, ${intake.equipment.join(", ") || "bodyweight"}, ${intake.level ?? "intermediate"} level, and I’ll build from the uploaded Supabase free-exercise-db exercises only. I’ll give you a draft to approve or swap before saving.`;
+  return openAiTextStream(workoutAssumptionsPrompt(intake, candidates), fallback);
 }
 
 function cleanWorkout(value: GeneratedWorkout, intake: WorkoutIntake): GeneratedWorkout {
@@ -159,7 +187,7 @@ function cleanWorkout(value: GeneratedWorkout, intake: WorkoutIntake): Generated
   };
 }
 
-export async function generateWorkout(intake: WorkoutIntake, candidates: CompactExercise[]) {
+export async function generateWorkout(intake: WorkoutIntake, candidates: CompactExercise[], rejectedExerciseIds: string[] = []) {
   if (!candidates.length) {
     throw new Error("No matching exercises were found for this intake.");
   }
@@ -189,7 +217,7 @@ export async function generateWorkout(intake: WorkoutIntake, candidates: Compact
     progressionNote: "If it feels too easy, add one round before making exercises harder.",
   };
 
-  const generated = await openAiJson<GeneratedWorkout>(workoutGenerationPrompt(intake, candidates), fallback);
+  const generated = await openAiJson<GeneratedWorkout>(workoutGenerationPrompt(intake, candidates, rejectedExerciseIds), fallback);
   return cleanWorkout(generated, intake);
 }
 
@@ -202,6 +230,23 @@ function keyForExerciseLookup(value: string | null | undefined) {
 
 function uuidLike(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+export async function swapWorkoutExercise(intake: WorkoutIntake, workout: GeneratedWorkout, candidates: CompactExercise[], rejectedExerciseIds: string[], instruction: string) {
+  const fallback: GeneratedWorkout = {
+    ...workout,
+    blocks: workout.blocks.map((block) => ({
+      ...block,
+      items: block.items.map((item) => {
+        if (!rejectedExerciseIds.includes(item.exerciseId)) return item;
+        const replacement = candidates.find((exercise) => !rejectedExerciseIds.includes(exercise.id) && !workout.blocks.some((candidateBlock) => candidateBlock.items.some((candidateItem) => candidateItem.exerciseId === exercise.id)));
+        return replacement ? { ...item, exerciseId: replacement.id, exercise: replacement, coachingNote: `Swapped in ${replacement.title}. Keep it crisp and boxing-relevant.` } : item;
+      }),
+    })),
+  };
+
+  const generated = await openAiJson<GeneratedWorkout>(workoutSwapPrompt(intake, workout, candidates, rejectedExerciseIds, instruction), fallback);
+  return cleanWorkout(generated, intake);
 }
 
 export async function validateWorkoutExercises(workout: GeneratedWorkout, candidates: CompactExercise[]) {
@@ -283,7 +328,7 @@ export async function saveWorkoutForUser(userId: string, intake: WorkoutIntake, 
       equipment: workout.equipment,
       visibility: "private",
       intake_summary: JSON.stringify(intake),
-      ai_model: process.env.OPENAI_WORKOUT_MODEL ?? "gpt-4o-mini",
+      ai_model: workoutModel(),
     })
     .select("id")
     .single();
