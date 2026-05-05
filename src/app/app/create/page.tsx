@@ -417,5 +417,5 @@ export default function CreateWorkoutPage() {
   const activeSessionId = searchParams.get("sessionId");
   const showDebug = searchParams.get("debug") === "1";
 
-  return <CreateWorkoutThread key={activeSessionId ?? "new"} initialSessionId={activeSessionId} showDebug={showDebug} />;
+  return <CreateWorkoutThread initialSessionId={activeSessionId} showDebug={showDebug} />;
 }
