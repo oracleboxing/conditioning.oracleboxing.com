@@ -127,11 +127,15 @@ Hard rules:
 - Every exercise must come from the uploaded free-exercise-db candidate list and have at least one image. Nothing custom, no boxing drills, no made-up hybrid movements.
 - Avoid rejectedExerciseIds unless no safe alternative exists.
 - Diversify patterns rather than returning the same obvious exercises every time.
+- If the user asks for abs, abbs, abdominals, six-pack, core, trunk, bracing, or obliques, treat it as a core-focused session. Do not turn it into a general gym circuit.
+- For core-focused sessions, the main work must be direct abs/trunk exercises: planks, crunches, leg raises, dead bugs, hollow holds, anti-rotation, rotation, obliques, or similar candidate exercises.
+- For core-focused sessions, do not choose squats, farmer walks/carries, elliptical, treadmill, bike, leg machines, or generic lower-body/cardio work unless the user explicitly asks for those.
 
 Structure rules:
 - Include a prep/warm-up block unless the whole session is explicitly mobility only.
 - Include a main strength or power block when the requested bias or goal calls for it.
 - Include conditioning and/or core when useful for boxing transfer, especially gas tank, footwork, rotation, or repeat efforts.
+- If the request is primarily core/abs, prefer warmup + core + optional core finisher. Do not force a strength block just because the app is S&C.
 - Include a cooldown or mobility finish when the user mentions soreness, fatigue, mobility, recovery, hard intensity, or longer sessions.
 - Keep the block count realistic for the requested time. Short sessions can use 3 blocks, longer sessions can use 4-5.
 - Warm-ups and cooldowns still must use candidate exercises with image-backed UUIDs. Do not invent stretches or drills.

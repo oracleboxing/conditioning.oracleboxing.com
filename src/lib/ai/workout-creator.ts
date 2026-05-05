@@ -101,13 +101,15 @@ function heuristicExtract(message: string): Partial<WorkoutIntake> {
   const trainingEnvironment = lower.includes("hotel") ? "hotel" : lower.includes("home") ? "home" : lower.includes("gym") ? "gym" : undefined;
   const sessionBias = lower.includes("mobility") ? "mobility" : lower.includes("power") || lower.includes("explosive") ? "power" : lower.includes("conditioning") || lower.includes("cardio") || lower.includes("engine") ? "conditioning" : lower.includes("strength") ? "strength" : undefined;
   const preferredIntensity = lower.includes("easy") || lower.includes("light") ? "easy" : lower.includes("hard") || lower.includes("intense") ? "hard" : lower.includes("moderate") ? "moderate" : undefined;
+  const coreFocused = /\b(ab+s?|abs|abdominals?|six[ -]?pack|core|trunk|brace|bracing|obliques?)\b/.test(lower);
 
   return {
-    goal: message.length > 8 ? message : undefined,
+    goal: message.length > 8 || coreFocused ? message : undefined,
     equipment: equipment.length ? equipment.map((item) => item.replace(/s$/, "")) : undefined,
     timeMinutes: minutes ? Number(minutes) : undefined,
     level,
     injuriesOrConstraints: noInjuries ? "none" : undefined,
+    boxingFocus: coreFocused ? "core" : undefined,
     trainingEnvironment,
     preferredIntensity,
     whatToAvoid: nothingToAvoid ? "none" : undefined,
@@ -174,6 +176,26 @@ export async function extractIntake(messages: WorkoutChatMessage[], existingInta
 }
 
 
+function isCoreFocused(intake: WorkoutIntake) {
+  const focus = `${intake.goal ?? ""} ${intake.boxingFocus ?? ""} ${intake.sessionBias ?? ""}`.toLowerCase();
+  return /\b(ab+s?|abs|abdominals?|six[ -]?pack|core|trunk|brace|bracing|obliques?)\b/.test(focus);
+}
+
+function isDirectCoreExercise(exercise: CompactExercise) {
+  const title = exercise.title.toLowerCase();
+  const patterns = exercise.movementPatterns.join(" ").toLowerCase();
+  const qualities = exercise.boxingQualities.join(" ").toLowerCase();
+  const muscles = [...exercise.muscles.primary, ...exercise.muscles.secondary].join(" ").toLowerCase();
+  const text = `${title} ${patterns} ${qualities} ${muscles}`;
+  return /\b(plank|crunch|sit[ -]?up|leg raise|knee raise|reverse crunch|dead bug|hollow|v[ -]?up|russian twist|woodchop|pallof|ab |abs|abdominal|oblique|core|anti-extension|anti-rotation|rotation|trunk)\b/.test(text);
+}
+
+function isGeneralLowerOrMachine(exercise: CompactExercise) {
+  const title = exercise.title.toLowerCase();
+  const equipment = [...exercise.equipment, exercise.sourceEquipment ?? ""].join(" ").toLowerCase();
+  return /\b(squat|leg press|lunge|elliptical|treadmill|bike|bicycle|stair|calf|farmers? walk|farmer's walk)\b/.test(`${title} ${equipment}`);
+}
+
 function searchConfigFor(intake: WorkoutIntake) {
   const focus = `${intake.goal ?? ""} ${intake.boxingFocus ?? ""}`.toLowerCase();
   const config = {
@@ -201,7 +223,7 @@ function searchConfigFor(intake: WorkoutIntake) {
     config.movementPatterns.push("shoulder-health", "pull", "push");
     config.muscles.push("shoulders", "traps", "lats");
   }
-  if (/core|trunk|abs|brace/.test(focus)) {
+  if (/\b(ab+s?|abs|abdominals?|six[ -]?pack|core|trunk|brace|bracing|obliques?)\b/.test(focus)) {
     config.boxingQualities.push("trunk", "punch-transfer");
     config.movementPatterns.push("anti-extension", "anti-rotation", "rotation", "core");
     config.muscles.push("abdominals");
@@ -228,7 +250,7 @@ function searchTermsFor(intake: WorkoutIntake) {
   if (focus.includes("footwork") || focus.includes("legs")) terms.push("calf", "step", "jump");
   if (focus.includes("power") || focus.includes("punch")) terms.push("medicine ball", "rotation", "press", "jump", "squat");
   if (focus.includes("engine") || focus.includes("gas") || focus.includes("conditioning")) terms.push("burpee", "mountain climber", "jumping jack");
-  if (focus.includes("core") || focus.includes("rotation")) terms.push("plank", "twist", "woodchop");
+  if (/\b(ab+s?|abs|abdominals?|six[ -]?pack|core|trunk|brace|bracing|obliques?|rotation)\b/.test(focus)) terms.push("plank", "crunch", "leg raise", "knee raise", "dead bug", "hollow", "twist", "woodchop", "pallof", "ab");
 
   return [...new Set(terms)];
 }
@@ -292,6 +314,20 @@ function scoreExerciseCandidate(exercise: CompactExercise, intake: WorkoutIntake
   if (intersects(muscles, wantedMuscles)) {
     score += 10;
     reasons.push("muscle-match");
+  }
+
+  if (isCoreFocused(intake)) {
+    if (isDirectCoreExercise(exercise)) {
+      score += 34;
+      reasons.push("direct-core");
+    } else {
+      score -= 48;
+      reasons.push("not-direct-core");
+    }
+    if (isGeneralLowerOrMachine(exercise)) {
+      score -= 36;
+      reasons.push("core-intent-suppressed-general-work");
+    }
   }
   if (equipment) {
     const wantedEquipment = normalizedSet(equipment.split(","));
@@ -383,8 +419,10 @@ export async function gatherExerciseCandidates(intake: WorkoutIntake, rejectedEx
 
   const rejected = new Set(rejectedExerciseIds);
   const seed = `${intake.goal ?? ""}|${intake.boxingFocus ?? ""}|${intake.equipment.join(",")}|${new Date().toISOString().slice(0, 10)}`;
+  const coreFocused = isCoreFocused(intake);
   const scored = [...candidateMap.values()]
     .filter((exercise) => !rejected.has(exercise.id) && exercise.imageUrls.length > 0)
+    .filter((exercise) => !coreFocused || isDirectCoreExercise(exercise))
     .map((exercise) => scoreExerciseCandidate(exercise, intake, config, terms, equipment, levels))
     .filter((item) => item.score > 0);
 
@@ -425,56 +463,109 @@ export async function generateWorkout(intake: WorkoutIntake, candidates: Compact
     throw new Error("No matching exercises were found for this intake.");
   }
 
-  const fallback: GeneratedWorkout = {
-    title: "Oracle Conditioning Preview",
-    summary: "A boxing-focused session with prep, main work, and a conditioning finish from available exercises.",
-    durationMinutes: intake.timeMinutes ?? 30,
-    difficulty: intake.level === "beginner" || intake.level === "advanced" ? intake.level : "intermediate",
-    equipment: intake.equipment,
-    blocks: ([
-      {
-        type: "warmup",
-        title: "Prep",
-        items: candidates.slice(0, 2).map((exercise) => ({
-          exerciseId: exercise.id,
-          sets: 2,
-          reps: "8-10 controlled reps",
-          durationSeconds: null,
-          restSeconds: 20,
-          tempo: null,
-          coachingNote: "Open range, find balance, and get warm without wasting energy.",
-        })),
-      },
-      {
-        type: "strength",
-        title: intake.sessionBias === "power" ? "Main power work" : "Main strength work",
-        items: candidates.slice(2, 5).map((exercise) => ({
-          exerciseId: exercise.id,
-          sets: 3,
-          reps: "6-10",
-          durationSeconds: null,
-          restSeconds: 60,
-          tempo: null,
-          coachingNote: "Move clean, brace hard, and keep the reps sharp enough to transfer to boxing.",
-        })),
-      },
-      {
-        type: "conditioning",
-        title: "Boxing engine finish",
-        items: candidates.slice(5, 8).map((exercise) => ({
-          exerciseId: exercise.id,
-          sets: 3,
-          reps: null,
-          durationSeconds: 40,
-          restSeconds: 20,
-          tempo: null,
-          coachingNote: "Work at a pace you can repeat. No hero round followed by a collapse.",
-        })),
-      },
-    ] satisfies GeneratedWorkoutBlock[]).filter((block) => block.items.length),
-    safetyNotes: intake.injuriesOrConstraints && !["none", "none stated"].includes(intake.injuriesOrConstraints.toLowerCase()) ? [`Respect this constraint: ${intake.injuriesOrConstraints}.`] : [],
-    progressionNote: "If it feels too easy, add one round before making exercises harder.",
-  };
+  const coreFocused = isCoreFocused(intake);
+  const coreCandidates = coreFocused ? candidates.filter(isDirectCoreExercise) : candidates;
+  const fallback: GeneratedWorkout = coreFocused
+    ? {
+        title: "Core Session Preview",
+        summary: "A trunk-focused session built around direct abs and anti-rotation work.",
+        durationMinutes: intake.timeMinutes ?? 30,
+        difficulty: intake.level === "beginner" || intake.level === "advanced" ? intake.level : "intermediate",
+        equipment: intake.equipment,
+        blocks: ([
+          {
+            type: "warmup",
+            title: "Core prep",
+            items: coreCandidates.slice(0, 2).map((exercise) => ({
+              exerciseId: exercise.id,
+              sets: 2,
+              reps: "8-12 controlled reps",
+              durationSeconds: null,
+              restSeconds: 20,
+              tempo: null,
+              coachingNote: "Brace first, move second. Keep the ribs down and pelvis controlled.",
+            })),
+          },
+          {
+            type: "core",
+            title: "Abs and trunk work",
+            items: coreCandidates.slice(2, 6).map((exercise) => ({
+              exerciseId: exercise.id,
+              sets: 3,
+              reps: "10-15 or 30-40 seconds",
+              durationSeconds: null,
+              restSeconds: 45,
+              tempo: "controlled",
+              coachingNote: "Make the abs do the work. No swinging, no hip-flexor panic reps.",
+            })),
+          },
+          {
+            type: "core",
+            title: "Boxing brace finisher",
+            items: coreCandidates.slice(6, 8).map((exercise) => ({
+              exerciseId: exercise.id,
+              sets: 2,
+              reps: null,
+              durationSeconds: 40,
+              restSeconds: 20,
+              tempo: null,
+              coachingNote: "Hold shape under fatigue so your trunk does not leak power late in rounds.",
+            })),
+          },
+        ] satisfies GeneratedWorkoutBlock[]).filter((block) => block.items.length),
+        safetyNotes: intake.injuriesOrConstraints && !["none", "none stated"].includes(intake.injuriesOrConstraints.toLowerCase()) ? [`Respect this constraint: ${intake.injuriesOrConstraints}.`] : [],
+        progressionNote: "Progress by adding cleaner time under tension, not by turning it into a random full-body circuit.",
+      }
+    : {
+        title: "Oracle Conditioning Preview",
+        summary: "A boxing-focused session with prep, main work, and a conditioning finish from available exercises.",
+        durationMinutes: intake.timeMinutes ?? 30,
+        difficulty: intake.level === "beginner" || intake.level === "advanced" ? intake.level : "intermediate",
+        equipment: intake.equipment,
+        blocks: ([
+          {
+            type: "warmup",
+            title: "Prep",
+            items: candidates.slice(0, 2).map((exercise) => ({
+              exerciseId: exercise.id,
+              sets: 2,
+              reps: "8-10 controlled reps",
+              durationSeconds: null,
+              restSeconds: 20,
+              tempo: null,
+              coachingNote: "Open range, find balance, and get warm without wasting energy.",
+            })),
+          },
+          {
+            type: "strength",
+            title: intake.sessionBias === "power" ? "Main power work" : "Main strength work",
+            items: candidates.slice(2, 5).map((exercise) => ({
+              exerciseId: exercise.id,
+              sets: 3,
+              reps: "6-10",
+              durationSeconds: null,
+              restSeconds: 60,
+              tempo: null,
+              coachingNote: "Move clean, brace hard, and keep the reps sharp enough to transfer to boxing.",
+            })),
+          },
+          {
+            type: "conditioning",
+            title: "Boxing engine finish",
+            items: candidates.slice(5, 8).map((exercise) => ({
+              exerciseId: exercise.id,
+              sets: 3,
+              reps: null,
+              durationSeconds: 40,
+              restSeconds: 20,
+              tempo: null,
+              coachingNote: "Work at a pace you can repeat. No hero round followed by a collapse.",
+            })),
+          },
+        ] satisfies GeneratedWorkoutBlock[]).filter((block) => block.items.length),
+        safetyNotes: intake.injuriesOrConstraints && !["none", "none stated"].includes(intake.injuriesOrConstraints.toLowerCase()) ? [`Respect this constraint: ${intake.injuriesOrConstraints}.`] : [],
+        progressionNote: "If it feels too easy, add one round before making exercises harder.",
+      };
 
   const generated = await openAiJson<GeneratedWorkout>(workoutGenerationPrompt(intake, candidates, rejectedExerciseIds), fallback);
   return cleanWorkout(generated, intake);
