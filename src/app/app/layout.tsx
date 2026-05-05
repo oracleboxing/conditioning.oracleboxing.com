@@ -48,7 +48,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <main className="min-h-screen bg-white text-slate-950">
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="flex h-14 items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/app" className="text-sm font-semibold text-slate-950">Oracle Conditioning</Link>
+          <Link href="/app" aria-label="Oracle Boxing" className="block">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="https://sb.oracleboxing.com/logo/long_dark.webp" alt="Oracle Boxing" className="h-7 w-auto" />
+          </Link>
           <nav className="hidden items-center gap-1 sm:flex">
             {navItems.map((item) => (
               <Link key={item.href} href={item.href} className="rounded-md px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-950">
