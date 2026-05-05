@@ -50,7 +50,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="flex h-14 items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link href="/app" aria-label="Oracle Boxing" className="block">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://sb.oracleboxing.com/logo/long_dark.webp" alt="Oracle Boxing" className="h-7 w-auto" />
+            <img src="https://sb.oracleboxing.com/logo/long_dark.webp" alt="Oracle Boxing" className="h-5 w-auto" />
           </Link>
           <nav className="hidden items-center gap-1 sm:flex">
             {navItems.map((item) => (
