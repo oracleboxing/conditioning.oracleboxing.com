@@ -4,6 +4,8 @@ import { hasPremiumAccess } from "@/lib/auth/access";
 import { createAuthClient } from "@/lib/supabase/auth-server";
 import { signOut } from "../login/actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createAuthClient();
   const {
