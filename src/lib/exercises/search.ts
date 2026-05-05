@@ -42,6 +42,7 @@ export type CompactExercise = {
   difficulty: string | null;
   instructionsSummary: string | null;
   imageUrl: string | null;
+  imageUrls: string[];
 };
 
 export type ExerciseSearchResult = {
@@ -101,11 +102,10 @@ function summarizeInstructions(row: Pick<ExerciseRow, "instructions_json" | "des
   return oneLine.length > 220 ? `${oneLine.slice(0, 217).trimEnd()}...` : oneLine;
 }
 
-function firstImageUrl(structure: ExerciseStructureJson | null) {
+function imageUrlsFrom(structure: ExerciseStructureJson | null) {
   const imagePaths = jsonArray(structure?.image_paths);
   const storageUrls = jsonArray(structure?.source_payload?.storage_image_urls);
-  const images = [...imagePaths, ...storageUrls].filter((url) => /^https?:\/\//i.test(url));
-  return images[0] ?? null;
+  return [...new Set([...imagePaths, ...storageUrls].filter((url) => /^https?:\/\//i.test(url)))];
 }
 
 function musclesFrom(structure: ExerciseStructureJson | null) {
@@ -134,6 +134,7 @@ function matchesMuscle(row: Pick<ExerciseRow, "structure_json">, muscles: string
 }
 
 function toCompactExercise(row: ExerciseRow): CompactExercise {
+  const imageUrls = imageUrlsFrom(row.structure_json);
   return {
     id: row.id,
     slug: row.slug ?? row.id,
@@ -143,7 +144,8 @@ function toCompactExercise(row: ExerciseRow): CompactExercise {
     muscles: musclesFrom(row.structure_json),
     difficulty: row.difficulty,
     instructionsSummary: summarizeInstructions(row),
-    imageUrl: firstImageUrl(row.structure_json),
+    imageUrl: imageUrls[0] ?? null,
+    imageUrls,
   };
 }
 
@@ -180,17 +182,21 @@ export async function searchExercises(params: ExerciseSearchParams): Promise<Exe
     query = query.in("difficulty", difficulty);
   }
 
-  const scanLimit = muscle.length ? MUSCLE_SCAN_LIMIT : limit;
+  const scanLimit = muscle.length || limit < MUSCLE_SCAN_LIMIT ? MUSCLE_SCAN_LIMIT : limit;
   const { data, error } = await query.limit(scanLimit);
 
   if (error) {
     throw new Error(`Exercise search failed: ${error.message}`);
   }
 
-  const filtered = (data ?? []).filter((row) => matchesMuscle(row, muscle)).slice(0, limit);
+  const filtered = (data ?? [])
+    .filter((row) => matchesMuscle(row, muscle))
+    .map(toCompactExercise)
+    .filter((exercise) => exercise.imageUrls.length > 0)
+    .slice(0, limit);
 
   return {
-    data: filtered.map(toCompactExercise),
+    data: filtered,
     meta: {
       limit,
       returned: filtered.length,

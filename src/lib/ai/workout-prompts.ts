@@ -82,6 +82,7 @@ export function workoutGenerationPrompt(intake: WorkoutIntake, candidates: Compa
     muscles: exercise.muscles,
     difficulty: exercise.difficulty,
     summary: exercise.instructionsSummary,
+    imageCount: exercise.imageUrls.length,
   }));
 
   return [
@@ -103,7 +104,7 @@ Hard rules:
 - Keep it doable in the requested time.
 - Do not include medical claims, rehab prescriptions, or maximal lifting.
 - Use clear coaching notes that sound like a sharp boxing S&C coach, not generic fitness sludge.
-- Every exercise must come from the uploaded free-exercise-db candidate list. Nothing custom, no boxing drills, no made-up hybrid movements.
+- Every exercise must come from the uploaded free-exercise-db candidate list and have at least one image. Nothing custom, no boxing drills, no made-up hybrid movements.
 - Avoid rejectedExerciseIds unless no safe alternative exists.
 - Diversify patterns rather than returning the same obvious exercises every time.
 
@@ -151,6 +152,7 @@ export function workoutSwapPrompt(intake: WorkoutIntake, workout: GeneratedWorko
     muscles: exercise.muscles,
     difficulty: exercise.difficulty,
     summary: exercise.instructionsSummary,
+    imageCount: exercise.imageUrls.length,
   }));
 
   return [
@@ -163,7 +165,7 @@ You adjust a draft Oracle boxing S&C workout after user review.
 Return the full updated workout JSON only.
 
 Hard rules:
-- Use only exact candidate UUIDs.
+- Use only exact candidate UUIDs for exercises that have images.
 - Exercise names displayed to the user must be database titles only, attached by the UI from the UUID.
 - Replace rejected exercises with sensible alternatives from candidates.
 - Keep the workout coherent, same JSON shape, and do not invent exercises.`,
