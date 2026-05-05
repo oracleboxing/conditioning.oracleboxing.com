@@ -160,6 +160,7 @@ export async function searchExercises(params: ExerciseSearchParams): Promise<Exe
     .from("exercises")
     .select(EXERCISE_SELECT)
     .eq("is_active", true)
+    .eq("structure_json->>source", "free-exercise-db")
     .order("title", { ascending: true });
 
   if (q) {
