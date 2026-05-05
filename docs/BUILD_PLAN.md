@@ -198,3 +198,107 @@ Environment variables:
 - Free exercise DB source env loaded
 
 Note: no production deployment has been triggered yet.
+
+## Progress Update - 2026-05-05
+
+### Completed
+- Fresh Next.js project scaffolded at `/home/jordan/conditioning.oracleboxing.com`
+- GitHub repo initialised and pushed: `git@github.com:oracleboxing/conditioning.oracleboxing.com.git`
+- Vercel project created and linked: `conditioning-oracleboxing`
+- Domain added in Vercel: `conditioning.oracleboxing.com`
+- DNS record required in Cloudflare:
+  - CNAME `conditioning` -> `cname.vercel-dns.com`
+  - DNS-only for first verification
+- Environment variables loaded locally in `.env.local`
+- Environment variables loaded into Vercel for production, preview and development
+- `.env` / `.env.example` kept placeholder-safe, real secrets only in `.env.local` and Vercel
+- Initial build verified with `npm run build`
+- Supabase target selected: `https://rabudzkpputmollmpodd.supabase.co`
+- Exercise import sub-agent started
+- Import script created: `scripts/import-free-exercise-db.js`
+- Import is running safely with no deletes/wipes/truncates
+- Latest observed import progress: 750 / 873 exercises imported, 1,500 images uploaded, 0 failures
+
+### Important Notes
+- We are using `yuhonas/free-exercise-db` for the MVP exercise library.
+- The importer detected the existing Oracle app exercise schema and adapted records into it instead of forcing the new draft schema.
+- Images are being uploaded to Supabase Storage bucket `exercise-images`.
+- Metadata preserves the original source payload inside `structure_json.source_payload`.
+
+## Recommended Next Steps
+
+### 1. Let the import finish and verify counts
+Wait for the importer to complete, then confirm:
+- exercise count imported
+- image count uploaded
+- sample public image URL loads
+- search/query shape is usable for the app
+
+### 2. Build exercise search API
+Create server-side exercise search over Supabase:
+- filter by equipment
+- filter by category
+- filter by primary/secondary muscles
+- fuzzy search by title/slug
+- return compact records for AI use
+
+This is the core engine. If search is bad, the AI workout builder becomes generic mush.
+
+### 3. Build auth + premium gate
+Fast MVP:
+- Supabase auth
+- allowlist premium emails via env or `member_access`
+- all app pages behind login except landing page
+
+Later:
+- sync paid Skool/Stripe members automatically
+
+### 4. Build AI chat workout creator
+Use custom API route first, not Vercel AI SDK complexity yet.
+
+Route:
+- `POST /api/workout-chat`
+
+Flow:
+- chat asks concise questions
+- gathers goal, equipment, time, level, injuries, focus
+- calls internal exercise search
+- returns validated structured workout JSON
+- saves workout + workout items
+
+Model:
+- start with OpenAI directly
+- keep AI Gateway key ready for later routing if useful
+
+### 5. Build clean workout page
+This is the thing members actually use.
+
+Needs:
+- mobile-first page
+- workout overview
+- warm-up/main/finisher blocks
+- exercise cards with image, sets/reps/time/rest
+- coaching note per exercise
+- visibility toggle: private/community
+
+### 6. Build community gallery
+Simple but valuable:
+- feed of community workouts
+- filters for duration, equipment, goal, difficulty
+- click into workout
+- later: save/remix/like
+
+### 7. Deploy first test build
+Once auth + one generated workout path works:
+- deploy to Vercel
+- verify envs
+- verify domain
+- send to 3-5 trusted members
+
+## Strong Product Opinion
+
+The first release should be narrow and excellent:
+
+"Tell the AI what you want to train today, what equipment you have, and what your body can handle. It builds one clean boxing-relevant S&C workout you can save and follow."
+
+Do not build full programmes yet. Individual workouts are faster, clearer, and easier to make genuinely useful.
