@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { GeneratedWorkout, WorkoutChatMessage, WorkoutIntake, WorkoutPersistence } from "@/lib/ai/workout-types";
 
@@ -179,6 +179,7 @@ function DebugPanel({
 }
 
 function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId: string | null; showDebug: boolean }) {
+  const router = useRouter();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<WorkoutChatMessage[]>([]);
   const [userName, setUserName] = useState("there");
@@ -278,10 +279,8 @@ function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId
 
         if (event.type === "session") {
           setSessionId(event.sessionId);
-          const url = new URL(window.location.href);
-          if (url.searchParams.get("sessionId") !== event.sessionId) {
-            url.searchParams.set("sessionId", event.sessionId);
-            window.history.replaceState(null, "", url.toString());
+          if (initialSessionId !== event.sessionId) {
+            router.replace(`/app/create?sessionId=${event.sessionId}`, { scroll: false });
           }
         }
         if (event.type === "intake") setIntake(event.intake);
@@ -359,7 +358,7 @@ function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId
           </div>
         </section>
       ) : (
-        <section className={`grid min-h-[calc(100vh-5rem)] w-full gap-6 px-3 sm:px-4 lg:pl-6 lg:pr-1 ${workout ? "xl:grid-cols-[minmax(420px,0.82fr)_minmax(560px,1fr)] 2xl:grid-cols-[minmax(460px,0.78fr)_minmax(680px,1fr)]" : "mx-auto max-w-4xl grid-cols-1"}`}>
+        <section className={`grid min-h-[calc(100vh-5rem)] w-full gap-6 px-3 sm:px-4 lg:pl-4 lg:pr-2 ${workout ? "lg:grid-cols-[minmax(360px,0.75fr)_minmax(480px,1fr)] 2xl:grid-cols-[minmax(440px,0.72fr)_minmax(720px,1fr)]" : "mx-auto max-w-4xl grid-cols-1"}`}>
           <div className="flex min-h-[calc(100vh-5rem)] min-w-0 flex-col">
             <div ref={scrollRef} className="flex-1 space-y-6 overflow-y-auto pb-10 pt-8 sm:px-4 lg:px-2 xl:px-4">
             {messages.map((message, index) => (
@@ -397,7 +396,7 @@ function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId
           </div>
 
           {workout ? (
-            <aside className="hidden max-h-[calc(100vh-5rem)] overflow-y-auto py-4 pr-0 xl:block">
+            <aside className="hidden max-h-[calc(100vh-5rem)] overflow-y-auto py-4 pr-0 lg:block">
               <div className="ml-auto w-full max-w-none">
                 <WorkoutPreview workout={workout} persistence={persistence} warnings={warnings} />
               </div>

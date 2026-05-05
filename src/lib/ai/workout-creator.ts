@@ -744,6 +744,36 @@ export async function editWorkoutWithInstruction(intake: WorkoutIntake, workout:
   return { ...patched, patch };
 }
 
+function diversifyWorkoutItems(blocks: GeneratedWorkoutBlock[], candidates: CompactExercise[]) {
+  const used = new Set<string>();
+  const candidateQueue = candidates.filter((exercise) => exercise.imageUrls.length > 0);
+  let cursor = 0;
+
+  return blocks.map((block) => ({
+    ...block,
+    items: block.items
+      .map((item) => {
+        if (!used.has(item.exerciseId)) {
+          used.add(item.exerciseId);
+          return item;
+        }
+
+        while (cursor < candidateQueue.length && used.has(candidateQueue[cursor].id)) cursor += 1;
+        const replacement = candidateQueue[cursor];
+        if (!replacement) return null;
+        used.add(replacement.id);
+        cursor += 1;
+        return {
+          ...item,
+          exerciseId: replacement.id,
+          exercise: replacement,
+          coachingNote: item.coachingNote || `Use ${replacement.title} here to keep the block varied and targeted.`,
+        };
+      })
+      .filter((item): item is GeneratedWorkoutItem => Boolean(item)),
+  })).filter((block) => block.items.length);
+}
+
 export async function validateWorkoutExercises(workout: GeneratedWorkout, candidates: CompactExercise[]) {
   const candidateById = new Map(candidates.map((exercise) => [exercise.id, exercise]));
   const candidateByLooseKey = new Map<string, CompactExercise>();
@@ -755,7 +785,7 @@ export async function validateWorkoutExercises(workout: GeneratedWorkout, candid
   }
 
   const warnings: string[] = [];
-  const normalizedBlocks: GeneratedWorkoutBlock[] = workout.blocks
+  const normalizedBlocks: GeneratedWorkoutBlock[] = diversifyWorkoutItems(workout.blocks, candidates)
     .map((block) => ({
       ...block,
       items: block.items
