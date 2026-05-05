@@ -1,5 +1,8 @@
 import type { WorkoutDisplay } from "./types";
 
+const IMAGE_BASE = "https://rabudzkpputmollmpodd.supabase.co/storage/v1/object/public/exercise-images";
+const exerciseImage = (path: string) => `${IMAGE_BASE}/${path}/0.jpg`;
+
 export const mockWorkout: WorkoutDisplay = {
   id: "demo-boxing-engine",
   title: "Boxing Engine: Legs, Core and Shoulder Armour",
@@ -27,7 +30,7 @@ export const mockWorkout: WorkoutDisplay = {
             id: "jump-rope",
             name: "Skip rope rhythm rounds",
             category: "conditioning",
-            imageUrl: null,
+            imageUrl: exerciseImage("Battling_Ropes"),
             equipment: ["Skipping rope"],
             instructions: ["Stay light on the balls of the feet.", "Keep shoulders loose and breathing steady."],
           },
@@ -49,7 +52,7 @@ export const mockWorkout: WorkoutDisplay = {
             id: "worlds-greatest-stretch",
             name: "World's greatest stretch with rotation",
             category: "mobility",
-            imageUrl: null,
+            imageUrl: exerciseImage("All_Fours_Quad_Stretch"),
             equipment: ["Bodyweight"],
             instructions: ["Step into a deep lunge.", "Rotate through the upper back without collapsing the front knee."],
           },
@@ -79,7 +82,7 @@ export const mockWorkout: WorkoutDisplay = {
             id: "goblet-squat",
             name: "Goblet squat",
             category: "strength",
-            imageUrl: null,
+            imageUrl: exerciseImage("Bodyweight_Squat"),
             equipment: ["Dumbbell"],
             instructions: ["Hold the dumbbell tight to the chest.", "Sit between the hips, drive the floor away."],
           },
@@ -101,7 +104,7 @@ export const mockWorkout: WorkoutDisplay = {
             id: "band-row",
             name: "Band row with scap squeeze",
             category: "strength",
-            imageUrl: null,
+            imageUrl: exerciseImage("Alternating_Renegade_Row"),
             equipment: ["Resistance band"],
             instructions: ["Anchor the band at chest height.", "Pull elbows back and pause with shoulder blades together."],
           },
@@ -123,7 +126,7 @@ export const mockWorkout: WorkoutDisplay = {
             id: "dead-bug",
             name: "Dead bug reach",
             category: "core",
-            imageUrl: null,
+            imageUrl: exerciseImage("Dead_Bug"),
             equipment: ["Bodyweight"],
             instructions: ["Press lower back gently into the floor.", "Reach opposite arm and leg without ribs flaring."],
           },
@@ -153,7 +156,7 @@ export const mockWorkout: WorkoutDisplay = {
             id: "shadowboxing-sprint",
             name: "Shadowboxing sprint intervals",
             category: "conditioning",
-            imageUrl: null,
+            imageUrl: exerciseImage("Mountain_Climbers"),
             equipment: ["Bodyweight"],
             instructions: ["Throw straight punches at high speed.", "Reset stance every time the feet get messy."],
           },
