@@ -274,7 +274,14 @@ export default function CreateWorkoutPage() {
         if (!line.trim()) continue;
         const event = JSON.parse(line) as StreamEvent;
 
-        if (event.type === "session") setSessionId(event.sessionId);
+        if (event.type === "session") {
+          setSessionId(event.sessionId);
+          const url = new URL(window.location.href);
+          if (url.searchParams.get("sessionId") !== event.sessionId) {
+            url.searchParams.set("sessionId", event.sessionId);
+            window.history.replaceState(null, "", url.toString());
+          }
+        }
         if (event.type === "intake") setIntake(event.intake);
         if (event.type === "status") setStatus(event.message);
         if (event.type === "debug") setDebugEvents((current) => [...current.slice(-8), { label: event.label, data: event.data, at: new Date().toISOString() }]);
