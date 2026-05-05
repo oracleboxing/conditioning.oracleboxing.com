@@ -15,6 +15,7 @@ npm run dev
 - `docs/BUILD_PLAN.md` - product, phases, AI flow
 - `docs/CREDENTIALS.md` - required env vars
 - `supabase/schema.sql` - initial database schema
+- `docs/community-gallery-sql.md` - community workout visibility and RLS notes
 
 ## Current direction
 

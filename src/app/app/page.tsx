@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createAuthClient } from "@/lib/supabase/auth-server";
 import { signOut } from "../login/actions";
 
@@ -30,11 +31,11 @@ export default async function AppHome() {
               This is the protected premium shell. Next step is plugging in saved workouts, generated plans and exercise browsing.
             </p>
           </div>
-          <div className="rounded-3xl border border-[#007aff]/30 bg-[#007aff]/10 p-6">
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#7db7ff]">Status</p>
-            <p className="mt-3 text-2xl font-black">MVP gated</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">Auth, session refresh and premium access checks are live.</p>
-          </div>
+          <Link href="/app/community" className="rounded-3xl border border-[#007aff]/30 bg-[#007aff]/10 p-6 transition hover:border-[#007aff] hover:bg-[#007aff]/15">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#7db7ff]">Community</p>
+            <p className="mt-3 text-2xl font-black">Browse the gallery</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">Shared member workouts with filters for goal, kit, duration and difficulty.</p>
+          </Link>
         </section>
       </div>
     </main>
