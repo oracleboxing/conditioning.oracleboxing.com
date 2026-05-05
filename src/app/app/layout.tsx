@@ -10,7 +10,6 @@ const navItems = [
   { href: "/app/create", label: "Create Workout", description: "Build today's session" },
   { href: "/app/workouts", label: "My Workouts", description: "Saved training" },
   { href: "/app/community", label: "Community", description: "Borrow proven sessions" },
-  { href: "/design-decks", label: "Design Decks", description: "Dev reference" },
 ];
 
 function PremiumRequired({ email }: { email?: string }) {
