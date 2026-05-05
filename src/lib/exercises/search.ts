@@ -196,7 +196,7 @@ function searchScore(exercise: CompactExercise, filters: { q: string; equipment:
   return score;
 }
 
-function toCompactExercise(row: ExerciseRow): CompactExercise {
+export function toCompactExercise(row: ExerciseRow): CompactExercise {
   const imageUrls = imageUrlsFrom(row);
   return {
     id: row.id,

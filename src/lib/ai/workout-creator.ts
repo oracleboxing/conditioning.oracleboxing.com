@@ -1,5 +1,6 @@
-import { searchExercises, type CompactExercise } from "@/lib/exercises/search";
+import { searchExercises, toCompactExercise, type CompactExercise } from "@/lib/exercises/search";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
+import type { ExerciseRow } from "@/lib/supabase/types";
 import { intakeExtractionPrompt, workoutAssumptionsPrompt, workoutEditPatchFallback, workoutEditPrompt, workoutGenerationPrompt, workoutSwapPrompt } from "@/lib/ai/workout-prompts";
 import { openAiJson, openAiTextStream, workoutModel } from "@/lib/ai/openai";
 import type {
@@ -1003,7 +1004,7 @@ export async function loadGeneratedWorkoutForUser(userId: string, workoutId: str
       rest_seconds: number | null;
       tempo: string | null;
       coaching_note: string | null;
-      exercises: CompactExercise | CompactExercise[] | null;
+      exercises: ExerciseRow | ExerciseRow[] | null;
     }> | null;
   };
 
@@ -1011,7 +1012,8 @@ export async function loadGeneratedWorkoutForUser(userId: string, workoutId: str
   for (const item of [...(row.workout_items ?? [])].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))) {
     const type = item.block_type ?? "strength";
     const key = `${type}:${item.block_title ?? type}`;
-    const exercise = Array.isArray(item.exercises) ? item.exercises[0] : item.exercises;
+    const exerciseRow = Array.isArray(item.exercises) ? item.exercises[0] : item.exercises;
+    const exercise = exerciseRow ? toCompactExercise(exerciseRow) : null;
     if (!blocks.has(key)) blocks.set(key, { type, title: item.block_title ?? type, items: [] });
     blocks.get(key)?.items.push({
       itemId: item.id,
