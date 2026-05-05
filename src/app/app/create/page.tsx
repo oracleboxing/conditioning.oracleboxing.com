@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { GeneratedWorkout, WorkoutChatMessage, WorkoutIntake, WorkoutPersistence } from "@/lib/ai/workout-types";
 
@@ -24,59 +24,6 @@ type LoadChatResponse = {
   messages: Array<WorkoutChatMessage & { id?: string; created_at?: string | null }>;
   warning?: string;
 };
-
-function IntakePill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-slate-950">{value}</p>
-    </div>
-  );
-}
-
-function ExerciseCard({
-  item,
-  rejected,
-  disabled,
-  onReject,
-}: {
-  item: GeneratedWorkout["blocks"][number]["items"][number];
-  rejected: boolean;
-  disabled: boolean;
-  onReject: () => void;
-}) {
-  return (
-    <div className={`rounded-lg p-4 ${rejected ? "border border-red-400/40 bg-red-500/10" : "bg-slate-50"}`}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-base font-semibold text-slate-950">{item.exercise?.title ?? item.exerciseId}</p>
-          <p className="mt-1 text-sm leading-6 text-slate-600">{item.coachingNote}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <p className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase text-black">
-            {item.sets ? `${item.sets} sets` : item.durationSeconds ? `${item.durationSeconds}s` : "work"}
-          </p>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={onReject}
-            className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition disabled:cursor-not-allowed disabled:opacity-40 ${
-              rejected ? "border-red-300 bg-red-300 text-black" : "border-slate-300 text-slate-950 hover:bg-slate-100"
-            }`}
-          >
-            {rejected ? "Rejected" : "Swap"}
-          </button>
-        </div>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-        {item.reps && <span className="rounded-full bg-slate-100 px-3 py-1">{item.reps}</span>}
-        {item.restSeconds !== null && <span className="rounded-full bg-slate-100 px-3 py-1">Rest {item.restSeconds}s</span>}
-        {item.tempo && <span className="rounded-full bg-slate-100 px-3 py-1">Tempo {item.tempo}</span>}
-      </div>
-    </div>
-  );
-}
-
 
 function ChatActions() {
   return (
@@ -125,6 +72,49 @@ function PromptBar({
   );
 }
 
+function ExerciseCard({
+  item,
+  rejected,
+  disabled,
+  onReject,
+}: {
+  item: GeneratedWorkout["blocks"][number]["items"][number];
+  rejected: boolean;
+  disabled: boolean;
+  onReject: () => void;
+}) {
+  return (
+    <div className={`rounded-lg p-4 ${rejected ? "border border-red-400/40 bg-red-500/10" : "bg-slate-50"}`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-base font-semibold text-slate-950">{item.exercise?.title ?? item.exerciseId}</p>
+          <p className="mt-1 text-sm leading-6 text-slate-600">{item.coachingNote}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <p className="rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase text-black">
+            {item.sets ? `${item.sets} sets` : item.durationSeconds ? `${item.durationSeconds}s` : "work"}
+          </p>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onReject}
+            className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition disabled:cursor-not-allowed disabled:opacity-40 ${
+              rejected ? "border-red-300 bg-red-300 text-black" : "border-slate-300 text-slate-950 hover:bg-slate-100"
+            }`}
+          >
+            {rejected ? "Rejected" : "Swap"}
+          </button>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+        {item.reps && <span className="rounded-full bg-slate-100 px-3 py-1">{item.reps}</span>}
+        {item.restSeconds !== null && <span className="rounded-full bg-slate-100 px-3 py-1">Rest {item.restSeconds}s</span>}
+        {item.tempo && <span className="rounded-full bg-slate-100 px-3 py-1">Tempo {item.tempo}</span>}
+      </div>
+    </div>
+  );
+}
+
 function WorkoutPreview({
   workout,
   persistence,
@@ -157,12 +147,6 @@ function WorkoutPreview({
         <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-950">
           {persistence?.status === "saved" ? "Saved" : "Needs approval"}
         </div>
-      </div>
-
-      <div className="mt-6 grid gap-3 sm:grid-cols-3">
-        <IntakePill label="Time" value={`${workout.durationMinutes} min`} />
-        <IntakePill label="Level" value={workout.difficulty} />
-        <IntakePill label="Kit" value={workout.equipment.join(", ") || "bodyweight"} />
       </div>
 
       <div className="mt-7 space-y-5">
@@ -278,18 +262,6 @@ export default function CreateWorkoutPage() {
       cancelled = true;
     };
   }, []);
-
-  const intakeSummary = useMemo(() => {
-    if (!intake) return [];
-    return [
-      ["Goal", intake.goal],
-      ["Kit", intake.equipment.join(", ")],
-      ["Time", intake.timeMinutes ? `${intake.timeMinutes} min` : null],
-      ["Level", intake.level],
-      ["Constraints", intake.injuriesOrConstraints],
-      ["Boxing", intake.boxingFocus],
-    ].filter((entry): entry is [string, string] => Boolean(entry[1]));
-  }, [intake]);
 
   async function readWorkoutStream(response: Response, baseMessages: WorkoutChatMessage[]) {
     if (!response.body) throw new Error("Workout stream did not start.");
@@ -484,13 +456,6 @@ export default function CreateWorkoutPage() {
               </div>
             )}
             {error && <p className="max-w-3xl rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-            {intakeSummary.length > 0 && (
-              <div className="grid max-w-3xl gap-2 sm:grid-cols-3">
-                {intakeSummary.map(([label, value]) => (
-                  <IntakePill key={label} label={label} value={value} />
-                ))}
-              </div>
-            )}
             {workout ? (
               <WorkoutPreview
                 workout={workout}
