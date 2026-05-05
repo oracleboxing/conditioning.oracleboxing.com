@@ -25,25 +25,6 @@ type LoadChatResponse = {
   warning?: string;
 };
 
-function ChatActions() {
-  return (
-    <div className="mt-4 flex items-center gap-3 text-zinc-500">
-      {[
-        ["⧉", "Copy"],
-        ["♡", "Good response"],
-        ["♧", "Bad response"],
-        ["↥", "Share"],
-        ["↻", "Regenerate"],
-        ["…", "More"],
-      ].map(([icon, label]) => (
-        <button key={label} type="button" aria-label={label} className="text-base leading-none hover:text-black">
-          {icon}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function PromptBar({
   input,
   loading,
@@ -443,7 +424,6 @@ export default function CreateWorkoutPage() {
                 ) : (
                   <div className="max-w-3xl text-left">
                     <div className="whitespace-pre-wrap text-sm font-medium leading-7 text-black">{message.content}</div>
-                    <ChatActions />
                   </div>
                 )}
               </div>
