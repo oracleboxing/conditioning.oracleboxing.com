@@ -389,7 +389,7 @@ export default function CreateWorkoutPage() {
           </div>
 
           <div className="sticky bottom-5 z-10 mx-auto w-full max-w-3xl pb-2">
-            <PromptBar input={input} loading={loading} onInput={setInput} onSubmit={handleSubmit} placeholder="" />
+            <PromptBar input={input} loading={loading} onInput={setInput} onSubmit={handleSubmit} />
           </div>
         </section>
       )}
