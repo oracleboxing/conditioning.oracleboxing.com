@@ -341,13 +341,13 @@ export default function CreateWorkoutPage() {
   return (
     <main className="min-h-[calc(100vh-5rem)] bg-white text-black">
       {!messages.length && !workout ? (
-        <section className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl flex-col px-4">
-          <div className="flex flex-1 items-end justify-center pb-28 text-center">
+        <section className="relative mx-auto min-h-[calc(100vh-5rem)] w-full max-w-5xl px-4">
+          <div className="absolute inset-x-4 bottom-32 text-center">
             <h1 className="text-[22px] font-medium tracking-[-0.02em] text-black sm:text-3xl">
               Hey, {userName}. What would you like to train?
             </h1>
           </div>
-          <div className="sticky bottom-5 z-10 mx-auto w-full max-w-3xl pb-2">
+          <div className="absolute inset-x-4 bottom-8 z-10 mx-auto w-auto max-w-3xl">
             <PromptBar input={input} loading={loading} onInput={setInput} onSubmit={handleSubmit} />
             {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
           </div>
