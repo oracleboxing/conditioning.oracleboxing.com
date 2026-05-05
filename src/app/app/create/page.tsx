@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { GeneratedWorkout, WorkoutChatMessage, WorkoutIntake, WorkoutPersistence } from "@/lib/ai/workout-types";
 
@@ -177,7 +178,7 @@ function DebugPanel({
   );
 }
 
-export default function CreateWorkoutPage() {
+function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId: string | null; showDebug: boolean }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<WorkoutChatMessage[]>([]);
   const [userName, setUserName] = useState("there");
@@ -192,7 +193,6 @@ export default function CreateWorkoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [debugEvents, setDebugEvents] = useState<Array<{ label: string; data: unknown; at: string }>>([]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const showDebug = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "1";
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -215,11 +215,10 @@ export default function CreateWorkoutPage() {
   }, []);
 
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("sessionId");
-    if (!id) return;
+    if (!initialSessionId) return;
 
     let cancelled = false;
-    fetch(`/api/chat/workout?sessionId=${encodeURIComponent(id)}`)
+    fetch(`/api/chat/workout?sessionId=${encodeURIComponent(initialSessionId)}`)
       .then(async (response) => {
         const payload = (await response.json()) as LoadChatResponse | { message?: string };
         if (!response.ok) throw new Error("message" in payload && payload.message ? payload.message : "Could not load chat history.");
@@ -233,6 +232,9 @@ export default function CreateWorkoutPage() {
         if (payload.workout) {
           setWorkout(payload.workout);
           setPersistence(payload.session.workout_id ? { status: "saved", workoutId: payload.session.workout_id } : null);
+        } else {
+          setWorkout(null);
+          setPersistence(null);
         }
         if (payload.warning) setError(payload.warning);
       })
@@ -243,7 +245,7 @@ export default function CreateWorkoutPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialSessionId]);
 
   async function readWorkoutStream(response: Response, baseMessages: WorkoutChatMessage[]) {
     if (!response.body) throw new Error("Workout stream did not start.");
@@ -405,4 +407,13 @@ export default function CreateWorkoutPage() {
       )}
     </main>
   );
+}
+
+
+export default function CreateWorkoutPage() {
+  const searchParams = useSearchParams();
+  const activeSessionId = searchParams.get("sessionId");
+  const showDebug = searchParams.get("debug") === "1";
+
+  return <CreateWorkoutThread key={activeSessionId ?? "new"} initialSessionId={activeSessionId} showDebug={showDebug} />;
 }
