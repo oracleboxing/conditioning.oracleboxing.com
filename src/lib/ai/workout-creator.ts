@@ -1,6 +1,6 @@
 import { searchExercises, type CompactExercise } from "@/lib/exercises/search";
 import { getServerSupabaseClient } from "@/lib/supabase/server";
-import { intakeExtractionPrompt, workoutAssumptionsPrompt, workoutGenerationPrompt, workoutSwapPrompt } from "@/lib/ai/workout-prompts";
+import { intakeExtractionPrompt, workoutAssumptionsPrompt, workoutEditPrompt, workoutGenerationPrompt, workoutSwapPrompt } from "@/lib/ai/workout-prompts";
 import { openAiJson, openAiTextStream, workoutModel } from "@/lib/ai/openai";
 import type {
   GeneratedWorkout,
@@ -317,6 +317,12 @@ export async function swapWorkoutExercise(intake: WorkoutIntake, workout: Genera
   return cleanWorkout(generated, intake);
 }
 
+
+export async function editWorkoutWithInstruction(intake: WorkoutIntake, workout: GeneratedWorkout, candidates: CompactExercise[], instruction: string) {
+  const generated = await openAiJson<GeneratedWorkout>(workoutEditPrompt(intake, workout, candidates, instruction), workout);
+  return cleanWorkout(generated, intake);
+}
+
 export async function validateWorkoutExercises(workout: GeneratedWorkout, candidates: CompactExercise[]) {
   const candidateById = new Map(candidates.map((exercise) => [exercise.id, exercise]));
   const candidateByLooseKey = new Map<string, CompactExercise>();
@@ -436,4 +442,116 @@ export async function saveWorkoutForUser(userId: string, intake: WorkoutIntake, 
   }
 
   return { status: "saved", workoutId: workoutRow.id };
+}
+
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AuthLikeSupabase = any;
+
+export async function updateWorkoutForUser(userId: string, workoutId: string, intake: WorkoutIntake, workout: GeneratedWorkout): Promise<WorkoutPersistence> {
+  const supabase = getServerSupabaseClient() as unknown as AuthLikeSupabase;
+
+  const { error: workoutError } = await supabase
+    .from("workouts")
+    .update({
+      title: workout.title,
+      goal: intake.goal,
+      duration_minutes: workout.durationMinutes,
+      difficulty: workout.difficulty,
+      equipment: workout.equipment,
+      intake_summary: JSON.stringify(intake),
+      ai_model: workoutModel(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", workoutId)
+    .eq("user_id", userId);
+
+  if (workoutError) return { status: "preview_only", reason: `Workout update failed: ${workoutError.message}` };
+
+  const { error: deleteError } = await supabase.from("workout_items").delete().eq("workout_id", workoutId);
+  if (deleteError) return { status: "preview_only", reason: `Workout updated, but old items could not be replaced: ${deleteError.message}` };
+
+  const items = workout.blocks.flatMap((block, blockIndex) =>
+    block.items.map((item, itemIndex) => ({
+      workout_id: workoutId,
+      exercise_id: item.exerciseId,
+      order_index: blockIndex * 100 + itemIndex,
+      block_type: block.type,
+      block_title: block.title,
+      sets: item.sets,
+      reps: item.reps,
+      duration_seconds: item.durationSeconds,
+      rest_seconds: item.restSeconds,
+      tempo: item.tempo,
+      coaching_note: item.coachingNote,
+    })),
+  );
+
+  if (items.length) {
+    const { error: itemError } = await supabase.from("workout_items").insert(items);
+    if (itemError) return { status: "saved", workoutId, reason: `Workout updated, but item saving needs attention: ${itemError.message}` };
+  }
+
+  return { status: "saved", workoutId };
+}
+
+export async function loadGeneratedWorkoutForUser(userId: string, workoutId: string): Promise<GeneratedWorkout | null> {
+  const supabase = getServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("workouts")
+    .select(`id,title,goal,duration_minutes,difficulty,equipment,intake_summary,workout_items(id,order_index,block_type,block_title,sets,reps,duration_seconds,rest_seconds,tempo,coaching_note,exercises(id,title,slug,category,equipment_tags,difficulty,structure_json,image_urls,primary_muscles,secondary_muscles,movement_patterns,boxing_qualities,force,mechanic,source_equipment))`)
+    .eq("id", workoutId)
+    .eq("user_id", userId)
+    .order("order_index", { referencedTable: "workout_items", ascending: true })
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const row = data as unknown as {
+    title: string;
+    goal: string | null;
+    duration_minutes: number | null;
+    difficulty: "beginner" | "intermediate" | "advanced" | null;
+    equipment: string[] | null;
+    workout_items: Array<{
+      order_index: number | null;
+      block_type: GeneratedWorkout["blocks"][number]["type"] | null;
+      block_title: string | null;
+      sets: number | null;
+      reps: string | null;
+      duration_seconds: number | null;
+      rest_seconds: number | null;
+      tempo: string | null;
+      coaching_note: string | null;
+      exercises: CompactExercise | CompactExercise[] | null;
+    }> | null;
+  };
+
+  const blocks = new Map<string, GeneratedWorkout["blocks"][number]>();
+  for (const item of [...(row.workout_items ?? [])].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))) {
+    const type = item.block_type ?? "strength";
+    const key = `${type}:${item.block_title ?? type}`;
+    const exercise = Array.isArray(item.exercises) ? item.exercises[0] : item.exercises;
+    if (!blocks.has(key)) blocks.set(key, { type, title: item.block_title ?? type, items: [] });
+    blocks.get(key)?.items.push({
+      exerciseId: exercise?.id ?? "",
+      exercise: exercise ?? undefined,
+      sets: item.sets,
+      reps: item.reps,
+      durationSeconds: item.duration_seconds,
+      restSeconds: item.rest_seconds,
+      tempo: item.tempo,
+      coachingNote: item.coaching_note ?? "",
+    });
+  }
+
+  return {
+    title: row.title,
+    summary: row.goal ?? "Saved Oracle Conditioning workout.",
+    durationMinutes: row.duration_minutes ?? 30,
+    difficulty: row.difficulty ?? "intermediate",
+    equipment: row.equipment ?? [],
+    blocks: [...blocks.values()],
+    safetyNotes: [],
+    progressionNote: "Send a message if you want to change anything.",
+  };
 }

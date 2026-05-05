@@ -10,18 +10,15 @@ type StreamEvent =
   | { type: "question"; message: string; questions: string[] }
   | { type: "token"; content: string }
   | { type: "status"; message: string }
-  | { type: "workout"; workout: GeneratedWorkout; warnings: string[] }
+  | { type: "workout"; workout: GeneratedWorkout; warnings: string[]; persistence?: WorkoutPersistence }
   | { type: "done" }
   | { type: "error"; message: string };
 
-type SaveResponse =
-  | { type: "saved"; workout: GeneratedWorkout; warnings: string[]; persistence: WorkoutPersistence }
-  | { error: string; message: string };
-
 type LoadChatResponse = {
   sessionId: string;
-  session: { intake_summary?: WorkoutIntake | null };
+  session: { intake_summary?: WorkoutIntake | null; workout_id?: string | null };
   messages: Array<WorkoutChatMessage & { id?: string; created_at?: string | null }>;
+  workout?: GeneratedWorkout | null;
   warning?: string;
 };
 
@@ -114,12 +111,10 @@ function WorkoutPreview({
   workout,
   persistence,
   warnings,
-  onSave,
 }: {
   workout: GeneratedWorkout;
   persistence: WorkoutPersistence | null;
   warnings: string[];
-  onSave: () => void;
 }) {
   return (
     <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-7">
@@ -151,16 +146,7 @@ function WorkoutPreview({
 
       <p className="mt-5 text-sm font-semibold leading-6 text-slate-600">{workout.progressionNote}</p>
 
-      <div className="mt-6">
-        <button
-          type="button"
-          disabled={persistence?.status === "saved"}
-          onClick={onSave}
-          className="rounded-full bg-[#007aff] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1b8cff] disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {persistence?.status === "saved" ? "Saved" : "Approve and save"}
-        </button>
-      </div>
+      {persistence?.status === "saved" && <p className="mt-6 text-sm font-medium text-zinc-500">Saved. Message the coach to change anything.</p>}
     </section>
   );
 }
@@ -216,6 +202,10 @@ export default function CreateWorkoutPage() {
         setSessionId(payload.sessionId);
         setMessages(payload.messages.length ? payload.messages.map((message) => ({ role: message.role, content: message.content })) : []);
         setIntake(payload.session.intake_summary ?? null);
+        if (payload.workout) {
+          setWorkout(payload.workout);
+          setPersistence(payload.session.workout_id ? { status: "saved", workoutId: payload.session.workout_id } : null);
+        }
         if (payload.warning) setError(payload.warning);
       })
       .catch((caught) => {
@@ -269,11 +259,11 @@ export default function CreateWorkoutPage() {
         }
         if (event.type === "workout") {
           setWorkout(event.workout);
-          setPersistence(null);
+          setPersistence(event.persistence ?? null);
           setWarnings(event.warnings);
           setRejectedExerciseIds([]);
-          setStatus("Review the draft, swap anything off, then approve to save.");
-          if (!assistantText) appendAssistant("I’ve built a draft. Review the exercise choices before we save it.");
+          setStatus(event.persistence?.status === "saved" ? "Saved." : "Updated.");
+          if (!assistantText) appendAssistant(event.persistence?.status === "saved" ? "Done. I saved the workout. Send me any changes you want." : "I’ve updated the workout.");
         }
         if (event.type === "error") throw new Error(event.message);
       }
@@ -296,7 +286,7 @@ export default function CreateWorkoutPage() {
       const response = await fetch("/api/chat/workout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "chat", sessionId, messages: nextMessages, intake, rejectedExerciseIds }),
+        body: JSON.stringify({ mode: workout ? "edit" : "chat", sessionId, messages: nextMessages, intake, workout, rejectedExerciseIds }),
       });
 
       if (!response.ok) {
@@ -309,36 +299,6 @@ export default function CreateWorkoutPage() {
       const message = caught instanceof Error ? caught.message : "Workout creator failed.";
       setError(message);
       setMessages([...nextMessages, { role: "assistant", content: "That hit a snag. Try again or tweak the request." }]);
-    } finally {
-      setLoading(false);
-      setStatus(null);
-    }
-  }
-
-  async function handleSave() {
-    if (!workout || !intake || loading) return;
-    setLoading(true);
-    setStatus("Saving workout...");
-    setError(null);
-
-    try {
-      const response = await fetch("/api/chat/workout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "save", sessionId, intake, workout, rejectedExerciseIds }),
-      });
-      const payload = (await response.json()) as SaveResponse;
-
-      if (!response.ok || "error" in payload) {
-        throw new Error("message" in payload ? payload.message : "Save failed.");
-      }
-
-      setWorkout(payload.workout);
-      setWarnings(payload.warnings);
-      setPersistence(payload.persistence);
-      setMessages((current) => [...current, { role: "assistant", content: payload.persistence.status === "saved" ? "Saved. That one’s ready to run." : "Workout is approved, but only previewed because saving is not fully available yet." }]);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Save failed.");
     } finally {
       setLoading(false);
       setStatus(null);
@@ -360,8 +320,9 @@ export default function CreateWorkoutPage() {
           </div>
         </section>
       ) : (
-        <section className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-5xl flex-col px-4">
-          <div ref={scrollRef} className="flex-1 space-y-8 overflow-y-auto pb-10 pt-10 sm:px-8">
+        <section className={`mx-auto grid min-h-[calc(100vh-5rem)] w-full max-w-7xl gap-6 px-4 ${workout ? "lg:grid-cols-[minmax(0,0.9fr)_minmax(420px,1.1fr)]" : "grid-cols-1"}`}>
+          <div className="flex min-h-[calc(100vh-5rem)] flex-col">
+            <div ref={scrollRef} className="flex-1 space-y-8 overflow-y-auto pb-10 pt-10 sm:px-8">
             {messages.map((message, index) => (
               <div key={`${message.role}-${index}`} className={message.role === "user" ? "flex justify-end" : "flex justify-start"}>
                 {message.role === "user" ? (
@@ -383,19 +344,18 @@ export default function CreateWorkoutPage() {
               </div>
             )}
             {error && <p className="max-w-3xl rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-            {workout ? (
-              <WorkoutPreview
-                workout={workout}
-                persistence={persistence}
-                warnings={warnings}
-                onSave={handleSave}
-              />
-            ) : null}
+            </div>
+
+            <div className="sticky bottom-5 z-10 mx-auto w-full max-w-3xl pb-2">
+              <PromptBar input={input} loading={loading} onInput={setInput} onSubmit={handleSubmit} />
+            </div>
           </div>
 
-          <div className="sticky bottom-5 z-10 mx-auto w-full max-w-3xl pb-2">
-            <PromptBar input={input} loading={loading} onInput={setInput} onSubmit={handleSubmit} />
-          </div>
+          {workout ? (
+            <aside className="hidden max-h-[calc(100vh-6rem)] overflow-y-auto py-10 lg:block">
+              <WorkoutPreview workout={workout} persistence={persistence} warnings={warnings} />
+            </aside>
+          ) : null}
         </section>
       )}
     </main>

@@ -176,3 +176,40 @@ Hard rules:
     },
   ];
 }
+
+
+export function workoutEditPrompt(intake: WorkoutIntake, workout: GeneratedWorkout, candidates: CompactExercise[], instruction: string) {
+  const compactCandidates = candidates.map((exercise) => ({
+    id: exercise.id,
+    title: exercise.title,
+    equipment: exercise.equipment,
+    category: exercise.category,
+    muscles: exercise.muscles,
+    difficulty: exercise.difficulty,
+    summary: exercise.instructionsSummary,
+    imageCount: exercise.imageUrls.length,
+  }));
+
+  return [
+    {
+      role: "system" as const,
+      content: `${WORKOUT_AI_SOUL}
+
+You are editing an already-saved Oracle Conditioning workout live from chat.
+
+Return the full updated workout JSON only.
+
+Rules:
+- Apply the user's requested change directly.
+- You can change exercises, sets, reps, times, rests, block titles, notes, duration, or difficulty.
+- If changing exercises, use only exact candidate UUIDs for exercises that have images.
+- Keep unchanged parts of the workout stable unless they conflict with the user request.
+- Do not explain the edit in the JSON.
+- Do not invent exercises.`,
+    },
+    {
+      role: "user" as const,
+      content: JSON.stringify({ intake, workout, candidates: compactCandidates, instruction }),
+    },
+  ];
+}
