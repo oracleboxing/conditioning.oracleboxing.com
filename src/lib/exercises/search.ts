@@ -88,6 +88,16 @@ function splitFilter(value: string | null | undefined) {
     .filter(Boolean);
 }
 
+function normalizeEquipmentFilter(value: string) {
+  const item = normalizeToken(value);
+  if (/^dumbbells?$|^dbs?$/.test(item)) return "dumbbell";
+  if (/^kettlebells?$|^kbs?$/.test(item)) return "kettlebells";
+  if (/^resistance bands?$|^bands?$|^mini bands?$|^loop bands?$/.test(item)) return "bands";
+  if (/^barbells?$/.test(item)) return "barbell";
+  if (/^body ?weight$|^none$|^no equipment$/.test(item)) return "bodyweight";
+  return item;
+}
+
 function normalizeToken(value: string) {
   return value.trim().toLowerCase().replace(/[\s_-]+/g, " ");
 }
@@ -219,7 +229,7 @@ export function toCompactExercise(row: ExerciseRow): CompactExercise {
 
 export async function searchExercises(params: ExerciseSearchParams): Promise<ExerciseSearchResult> {
   const q = (params.q ?? "").trim();
-  const equipment = splitFilter(params.equipment);
+  const equipment = splitFilter(params.equipment).map(normalizeEquipmentFilter);
   const category = splitFilter(params.category);
   const muscle = splitFilter(params.muscle);
   const movementPattern = splitFilter(params.movementPattern);

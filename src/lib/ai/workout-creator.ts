@@ -107,7 +107,7 @@ function normalizeEquipmentToken(value: string) {
   const item = value.trim().toLowerCase();
   if (/full gym|commercial gym|gym access|all equipment|any equipment|everything/.test(item)) return "full gym";
   if (/resistance bands?|bands?|mini bands?|loop bands?/.test(item)) return "bands";
-  if (/dumbbells?|dbs?/.test(item)) return "dumbbells";
+  if (/dumbbells?|dbs?/.test(item)) return "dumbbell";
   if (/kettlebells?|kbs?/.test(item)) return "kettlebells";
   if (/barbells?/.test(item)) return "barbell";
   if (/body ?weight|none|no equipment/.test(item)) return "bodyweight";
