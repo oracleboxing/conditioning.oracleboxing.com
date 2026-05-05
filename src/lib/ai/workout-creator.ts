@@ -351,15 +351,23 @@ function scoreExerciseCandidate(exercise: CompactExercise, intake: WorkoutIntake
     score += 20;
     reasons.push("has-image");
   }
-  if (intersects(exercise.boxingQualities, wantedQualities)) {
+  const adaptationMatches = exercise.boxingSnc.adaptations.filter((adaptation) => wantedQualities.has(adaptation));
+  const familyMatches = exercise.boxingSnc.movementFamilies.filter((family) => wantedPatterns.has(family));
+  if (adaptationMatches.length) {
+    score += 24 * adaptationMatches.length;
+    reasons.push(`snc-adaptation:${adaptationMatches.join("/")}`);
+  } else if (intersects(exercise.boxingQualities, wantedQualities)) {
     const matches = exercise.boxingQualities.filter((quality) => wantedQualities.has(quality));
-    score += 18 * matches.length;
-    reasons.push(`quality:${matches.join("/")}`);
+    score += 10 * matches.length;
+    reasons.push(`legacy-quality:${matches.join("/")}`);
   }
-  if (intersects(exercise.movementPatterns, wantedPatterns)) {
+  if (familyMatches.length) {
+    score += 20 * familyMatches.length;
+    reasons.push(`snc-family:${familyMatches.join("/")}`);
+  } else if (intersects(exercise.movementPatterns, wantedPatterns)) {
     const matches = exercise.movementPatterns.filter((pattern) => wantedPatterns.has(pattern));
-    score += 14 * matches.length;
-    reasons.push(`pattern:${matches.join("/")}`);
+    score += 10 * matches.length;
+    reasons.push(`legacy-pattern:${matches.join("/")}`);
   }
   const muscles = [...exercise.muscles.primary, ...exercise.muscles.secondary];
   if (intersects(muscles, wantedMuscles)) {
@@ -372,7 +380,8 @@ function scoreExerciseCandidate(exercise: CompactExercise, intake: WorkoutIntake
     const targetPatterns = normalizedSet(target.movementPatterns);
     const primaryMatches = exercise.muscles.primary.filter((muscle) => targetMuscles.has(muscle.trim().toLowerCase()));
     const secondaryMatches = exercise.muscles.secondary.filter((muscle) => targetMuscles.has(muscle.trim().toLowerCase()));
-    const patternMatches = exercise.movementPatterns.filter((pattern) => targetPatterns.has(pattern.trim().toLowerCase()));
+    const bodyRegionMatches = exercise.boxingSnc.bodyRegions.filter((region) => targetMuscles.has(region.trim().toLowerCase()));
+    const patternMatches = [...exercise.movementPatterns, ...exercise.boxingSnc.movementFamilies].filter((pattern) => targetPatterns.has(pattern.trim().toLowerCase()));
     if (primaryMatches.length) {
       score += 36 * primaryMatches.length;
       reasons.push(`target-primary:${primaryMatches.join("/")}`);
@@ -381,11 +390,15 @@ function scoreExerciseCandidate(exercise: CompactExercise, intake: WorkoutIntake
       score += 14 * secondaryMatches.length;
       reasons.push(`target-secondary:${secondaryMatches.join("/")}`);
     }
+    if (bodyRegionMatches.length) {
+      score += 28 * bodyRegionMatches.length;
+      reasons.push(`target-region:${bodyRegionMatches.join("/")}`);
+    }
     if (patternMatches.length) {
       score += 24 * patternMatches.length;
       reasons.push(`target-pattern:${patternMatches.join("/")}`);
     }
-    if (!primaryMatches.length && !secondaryMatches.length && !patternMatches.length) {
+    if (!primaryMatches.length && !secondaryMatches.length && !bodyRegionMatches.length && !patternMatches.length) {
       score -= 42;
       reasons.push("misses-target");
     }
@@ -420,6 +433,23 @@ function scoreExerciseCandidate(exercise: CompactExercise, intake: WorkoutIntake
   if (intake.injuriesOrConstraints && /shoulder|rotator|impingement/i.test(intake.injuriesOrConstraints) && /press|dip|upright row/i.test(title)) {
     score -= 35;
     reasons.push("shoulder-risk");
+  }
+  const sncScores = exercise.boxingSnc.scores;
+  if (sncScores.boxing_transfer) {
+    score += Math.round(sncScores.boxing_transfer / 10);
+    reasons.push(`snc-transfer:${sncScores.boxing_transfer}`);
+  }
+  if (sncScores.fatigue_cost && /easy|light|low-impact|controlled/i.test(intake.preferredIntensity ?? "")) {
+    score -= Math.round(sncScores.fatigue_cost / 8);
+    reasons.push(`fatigue-cost:${sncScores.fatigue_cost}`);
+  }
+  if (sncScores.injury_risk && sncScores.injury_risk > 70) {
+    score -= 8;
+    reasons.push(`risk:${sncScores.injury_risk}`);
+  }
+  if (sncScores.setup_cost && intake.timeMinutes && intake.timeMinutes <= 20) {
+    score -= Math.round(sncScores.setup_cost / 12);
+    reasons.push(`setup-cost:${sncScores.setup_cost}`);
   }
   if (/stretch|mobility/.test(title) && !wantedQualities.has("mobility-recovery")) score -= 6;
 

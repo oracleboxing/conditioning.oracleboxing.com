@@ -31,6 +31,19 @@ const ENRICHED_EXERCISE_SELECT = [
   "boxing_qualities",
 ].join(",");
 
+const BOXING_SNC_EXERCISE_SELECT = [
+  ENRICHED_EXERCISE_SELECT,
+  "boxing_snc_roles",
+  "boxing_snc_adaptations",
+  "boxing_snc_movement_families",
+  "boxing_snc_body_regions",
+  "boxing_snc_equipment_fit",
+  "boxing_snc_scores",
+  "boxing_snc_prescription",
+  "boxing_snc_notes",
+  "boxing_snc_version",
+].join(",");
+
 export type ExerciseSearchParams = {
   q?: string | null;
   equipment?: string | null;
@@ -62,6 +75,16 @@ export type CompactExercise = {
   sourceEquipment: string | null;
   movementPatterns: string[];
   boxingQualities: string[];
+  boxingSnc: {
+    roles: string[];
+    adaptations: string[];
+    movementFamilies: string[];
+    bodyRegions: string[];
+    scores: Record<string, number>;
+    prescription: Record<string, unknown>;
+    notes: string | null;
+    version: string | null;
+  };
 };
 
 export type ExerciseSearchResult = {
@@ -206,6 +229,16 @@ function searchScore(exercise: CompactExercise, filters: { q: string; equipment:
   return score;
 }
 
+export function numberRecord(value: Json | undefined): Record<string, number> {
+  if (!value || Array.isArray(value) || typeof value !== "object") return {};
+  return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, number] => typeof entry[1] === "number"));
+}
+
+function objectRecord(value: Json | undefined): Record<string, unknown> {
+  if (!value || Array.isArray(value) || typeof value !== "object") return {};
+  return value as Record<string, unknown>;
+}
+
 export function toCompactExercise(row: ExerciseRow): CompactExercise {
   const imageUrls = imageUrlsFrom(row);
   return {
@@ -224,6 +257,16 @@ export function toCompactExercise(row: ExerciseRow): CompactExercise {
     sourceEquipment: row.source_equipment ?? row.structure_json?.source_payload?.equipment ?? row.equipment_tags?.[0] ?? null,
     movementPatterns: row.movement_patterns ?? [],
     boxingQualities: row.boxing_qualities ?? [],
+    boxingSnc: {
+      roles: row.boxing_snc_roles ?? [],
+      adaptations: row.boxing_snc_adaptations ?? [],
+      movementFamilies: row.boxing_snc_movement_families ?? [],
+      bodyRegions: row.boxing_snc_body_regions ?? [],
+      scores: numberRecord(row.boxing_snc_scores ?? undefined),
+      prescription: objectRecord(row.boxing_snc_prescription ?? undefined),
+      notes: row.boxing_snc_notes ?? null,
+      version: row.boxing_snc_version ?? null,
+    },
   };
 }
 
@@ -260,11 +303,16 @@ export async function searchExercises(params: ExerciseSearchParams): Promise<Exe
     return query.limit(scanLimit);
   };
 
-  let { data, error } = await buildQuery(ENRICHED_EXERCISE_SELECT);
+  let { data, error } = await buildQuery(BOXING_SNC_EXERCISE_SELECT);
   if (error && /column|schema cache|could not find/i.test(error.message)) {
-    const fallback = await buildQuery(BASE_EXERCISE_SELECT);
-    data = fallback.data;
-    error = fallback.error;
+    const enrichedFallback = await buildQuery(ENRICHED_EXERCISE_SELECT);
+    data = enrichedFallback.data;
+    error = enrichedFallback.error;
+  }
+  if (error && /column|schema cache|could not find/i.test(error.message)) {
+    const baseFallback = await buildQuery(BASE_EXERCISE_SELECT);
+    data = baseFallback.data;
+    error = baseFallback.error;
   }
 
   if (error) throw new Error(`Exercise search failed: ${error.message}`);

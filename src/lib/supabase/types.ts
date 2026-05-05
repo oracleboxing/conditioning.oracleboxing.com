@@ -54,6 +54,17 @@ export type ExerciseRow = {
   image_urls?: string[] | null;
   movement_patterns?: string[] | null;
   boxing_qualities?: string[] | null;
+  boxing_snc_roles?: string[] | null;
+  boxing_snc_adaptations?: string[] | null;
+  boxing_snc_movement_families?: string[] | null;
+  boxing_snc_body_regions?: string[] | null;
+  boxing_snc_equipment_fit?: Json | null;
+  boxing_snc_scores?: Json | null;
+  boxing_snc_prescription?: Json | null;
+  boxing_snc_notes?: string | null;
+  boxing_snc_version?: string | null;
+  boxing_snc_model?: string | null;
+  boxing_snc_enriched_at?: string | null;
   structure_json: ExerciseStructureJson | null;
   is_active: boolean | null;
   is_curated: boolean | null;
