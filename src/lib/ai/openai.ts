@@ -23,30 +23,48 @@ export async function openAiJson<T>(messages: ChatMessage[], fallback: T): Promi
     return fallback;
   }
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: process.env.OPENAI_WORKOUT_MODEL ?? "gpt-4o-mini",
-      messages,
-      response_format: { type: "json_object" },
-      temperature: 0.25,
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 18000);
 
-  const payload = (await response.json()) as ChatCompletionResponse;
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: process.env.OPENAI_WORKOUT_MODEL ?? "gpt-4o-mini",
+        messages,
+        response_format: { type: "json_object" },
+        temperature: 0.25,
+      }),
+    });
 
-  if (!response.ok) {
-    throw new Error(payload.error?.message ?? "OpenAI request failed.");
+    const payload = (await response.json()) as ChatCompletionResponse;
+
+    if (!response.ok) {
+      console.warn("OpenAI workout request failed, using fallback:", payload.error?.message ?? response.statusText);
+      return fallback;
+    }
+
+    const content = payload.choices?.[0]?.message?.content;
+    if (!content) {
+      console.warn("OpenAI workout request returned empty content, using fallback.");
+      return fallback;
+    }
+
+    try {
+      return JSON.parse(content) as T;
+    } catch (error) {
+      console.warn("OpenAI workout JSON parse failed, using fallback:", error instanceof Error ? error.message : "Unknown parse error");
+      return fallback;
+    }
+  } catch (error) {
+    console.warn("OpenAI workout request errored, using fallback:", error instanceof Error ? error.message : "Unknown OpenAI error");
+    return fallback;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  const content = payload.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error("OpenAI returned an empty response.");
-  }
-
-  return JSON.parse(content) as T;
 }

@@ -108,9 +108,10 @@ function searchTermsFor(intake: WorkoutIntake) {
   const focus = `${intake.goal ?? ""} ${intake.boxingFocus ?? ""}`.toLowerCase();
   const terms = ["squat", "lunge", "push", "row", "plank", "bridge", "rotation", "jump", "stretch"];
 
+  if (focus.includes("glute") || focus.includes("hip")) terms.push("glute", "hip", "bridge", "lunge", "squat", "thrust");
   if (focus.includes("shoulder")) terms.push("shoulder", "external rotation", "press");
   if (focus.includes("footwork") || focus.includes("legs")) terms.push("calf", "step", "jump");
-  if (focus.includes("power") || focus.includes("punch")) terms.push("medicine ball", "rotation", "press");
+  if (focus.includes("power") || focus.includes("punch")) terms.push("medicine ball", "rotation", "press", "jump", "squat");
   if (focus.includes("engine") || focus.includes("gas") || focus.includes("conditioning")) terms.push("burpee", "mountain climber", "jumping jack");
   if (focus.includes("core") || focus.includes("rotation")) terms.push("plank", "twist", "woodchop");
 
