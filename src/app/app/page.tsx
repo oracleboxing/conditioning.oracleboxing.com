@@ -19,18 +19,26 @@ export default async function AppHome() {
             <h1 className="mt-3 text-4xl font-black tracking-tight">My Workouts</h1>
             <p className="mt-2 text-sm text-zinc-400">Signed in as {user?.email}</p>
           </div>
-          <form action={signOut}>
-            <button className="rounded-full border border-white/15 px-5 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-white/10">
-              Sign out
-            </button>
-          </form>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <a
+              href="/app/create"
+              className="rounded-full bg-[#007aff] px-5 py-3 text-center text-sm font-bold uppercase tracking-wide text-white transition hover:bg-[#2f96ff]"
+            >
+              Create workout
+            </a>
+            <form action={signOut}>
+              <button className="rounded-full border border-white/15 px-5 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-white/10">
+                Sign out
+              </button>
+            </form>
+          </div>
         </header>
 
         <section className="mt-10 grid gap-4 md:grid-cols-3">
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 md:col-span-2">
-            <h2 className="text-2xl font-black tracking-tight">Workout builder coming next</h2>
+            <h2 className="text-2xl font-black tracking-tight">AI workout creator is live</h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-300">
-              This is the protected premium shell. Next step is plugging in saved workouts, generated plans and exercise browsing.
+              Build one boxing-specific S&amp;C workout from a short chat brief. It searches the Supabase exercise library, validates the chosen exercises, and saves when workout tables are available.
             </p>
           </div>
           <Link href="/app/community" className="rounded-3xl border border-[#007aff]/30 bg-[#007aff]/10 p-6 transition hover:border-[#007aff] hover:bg-[#007aff]/15">
