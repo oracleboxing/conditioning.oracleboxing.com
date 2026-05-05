@@ -1,26 +1,3 @@
-# AI Workout Chat MVP
-
-Route: `/app/create`
-API: `POST /api/chat/workout`
-
-The chat collects the minimum viable brief:
-
-- goal
-- equipment
-- time
-- level
-- injuries or constraints
-- boxing focus
-
-The API asks for only one or two missing answers at a time. Once the brief is complete, it searches `/api/exercises/search` server-side via `searchExercises`, gives the model only validated Supabase exercise candidates, validates selected exercise IDs again, then attempts to save.
-
-If `workouts` / `workout_items` are missing, the UI degrades to preview-only and the API returns a `preview_only` persistence status.
-
-## Safe migration SQL
-
-Review before running in Supabase. This only creates tables and indexes if missing.
-
-```sql
 create table if not exists public.workouts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -36,9 +13,6 @@ create table if not exists public.workouts (
   updated_at timestamptz default now()
 );
 
-create index if not exists workouts_user_id_idx on public.workouts(user_id);
-create index if not exists workouts_visibility_created_idx on public.workouts(visibility, created_at desc);
-
 create table if not exists public.workout_items (
   id uuid primary key default gen_random_uuid(),
   workout_id uuid not null references public.workouts(id) on delete cascade,
@@ -52,10 +26,22 @@ create table if not exists public.workout_items (
   rest_seconds int,
   tempo text,
   coaching_note text,
+  coaching_cues text[] default '{}',
+  boxing_relevance text,
   created_at timestamptz default now()
 );
 
+alter table public.workout_items
+  alter column exercise_id type uuid using exercise_id::uuid;
+
+alter table public.workout_items
+  add column if not exists coaching_cues text[] default '{}',
+  add column if not exists boxing_relevance text;
+
+create index if not exists workouts_user_id_idx on public.workouts(user_id);
+create index if not exists workouts_visibility_created_idx on public.workouts(visibility, created_at desc);
 create index if not exists workout_items_workout_order_idx on public.workout_items(workout_id, order_index);
+create index if not exists workout_items_block_order_idx on public.workout_items(workout_id, block_type, order_index);
 
 alter table public.workouts enable row level security;
 alter table public.workout_items enable row level security;
@@ -68,20 +54,34 @@ begin
       using (auth.uid() = user_id);
   end if;
 
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'workouts' and policyname = 'Members can read community workouts') then
+    create policy "Members can read community workouts"
+      on public.workouts for select
+      using (visibility = 'community');
+  end if;
+
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'workouts' and policyname = 'Users can insert own workouts') then
     create policy "Users can insert own workouts"
       on public.workouts for insert
       with check (auth.uid() = user_id);
   end if;
 
-  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'workout_items' and policyname = 'Users can read own workout items') then
-    create policy "Users can read own workout items"
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'workouts' and policyname = 'Users can update own workouts') then
+    create policy "Users can update own workouts"
+      on public.workouts for update
+      using (auth.uid() = user_id)
+      with check (auth.uid() = user_id);
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'workout_items' and policyname = 'Workout items follow workout visibility') then
+    create policy "Workout items follow workout visibility"
       on public.workout_items for select
       using (
         exists (
-          select 1 from public.workouts
-          where workouts.id = workout_items.workout_id
-          and workouts.user_id = auth.uid()
+          select 1
+          from public.workouts w
+          where w.id = workout_items.workout_id
+            and (w.user_id = auth.uid() or w.visibility = 'community')
         )
       );
   end if;
@@ -91,13 +91,11 @@ begin
       on public.workout_items for insert
       with check (
         exists (
-          select 1 from public.workouts
-          where workouts.id = workout_items.workout_id
-          and workouts.user_id = auth.uid()
+          select 1
+          from public.workouts w
+          where w.id = workout_items.workout_id
+            and w.user_id = auth.uid()
         )
       );
   end if;
 end $$;
-```
-
-Server-side saving currently uses the service role client, so RLS is not required for the MVP API path, but the policies are included for future direct client reads.

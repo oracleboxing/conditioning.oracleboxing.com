@@ -25,7 +25,7 @@ create table if not exists public.workouts (
 create table if not exists public.workout_items (
   id uuid primary key default gen_random_uuid(),
   workout_id uuid not null references public.workouts(id) on delete cascade,
-  exercise_id text references public.exercises(id),
+  exercise_id uuid references public.exercises(id),
   order_index int not null,
   block_type text not null,
   block_title text,
