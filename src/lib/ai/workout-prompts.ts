@@ -14,6 +14,8 @@ export const INTAKE_FIELDS = [
   "preferredIntensity",
   "whatToAvoid",
   "sessionBias",
+  "targetMuscles",
+  "targetMovementPatterns",
 ] as const;
 
 export function intakeExtractionPrompt(existingIntake: Partial<WorkoutIntake>, transcript: string) {
@@ -36,11 +38,14 @@ Fields:
 - preferredIntensity: how hard it should feel today, for example easy, moderate, hard, brutal but safe, low impact, or technical.
 - whatToAvoid: exercises, movements, equipment, impact, or styles the user wants to avoid, or "none" if explicitly none.
 - sessionBias: strength, power, conditioning, mobility, mixed, or unknown.
+- targetMuscles: the body area/muscles the user explicitly wants to train, as lowercase exercise-db style names, for example abdominals, glutes, quadriceps, hamstrings, calves, shoulders, chest, lats, triceps, biceps, lower back.
+- targetMovementPatterns: the movement qualities explicitly requested or strongly implied, for example core, anti-extension, anti-rotation, rotation, hinge, squat, lunge, push, pull, carry, shoulder-health, mobility, elastic-conditioning.
 
 Rules:
 - Merge new information with existing intake.
 - Do not invent specific missing values.
 - Keep arrays compact.
+- If the user asks for abs, abbs, abdominals, six-pack, core, trunk, bracing, or obliques, set targetMuscles to ["abdominals"] and targetMovementPatterns to core patterns like ["core", "anti-extension", "anti-rotation", "rotation"] as appropriate.
 - If the user says no injuries, store "none".
 - If the user says nothing to avoid, store "none".
 - If time is written as "half an hour", return 30.
@@ -127,9 +132,8 @@ Hard rules:
 - Every exercise must come from the uploaded free-exercise-db candidate list and have at least one image. Nothing custom, no boxing drills, no made-up hybrid movements.
 - Avoid rejectedExerciseIds unless no safe alternative exists.
 - Diversify patterns rather than returning the same obvious exercises every time.
-- If the user asks for abs, abbs, abdominals, six-pack, core, trunk, bracing, or obliques, treat it as a core-focused session. Do not turn it into a general gym circuit.
-- For core-focused sessions, the main work must be direct abs/trunk exercises: planks, crunches, leg raises, dead bugs, hollow holds, anti-rotation, rotation, obliques, or similar candidate exercises.
-- For core-focused sessions, do not choose squats, farmer walks/carries, elliptical, treadmill, bike, leg machines, or generic lower-body/cardio work unless the user explicitly asks for those.
+- If the user gives a target body area, retrieval and selection must primarily serve that target. Do not broaden a targeted request into a generic full-body circuit unless the user asks for full body.
+- For abs/core/trunk requests, the main work must use exercises whose muscles or movement patterns directly match the target area, such as abdominals, core, anti-extension, anti-rotation, rotation, or obliques.
 
 Structure rules:
 - Include a prep/warm-up block unless the whole session is explicitly mobility only.

@@ -26,6 +26,8 @@ const EMPTY_INTAKE: WorkoutIntake = {
   preferredIntensity: null,
   whatToAvoid: null,
   sessionBias: null,
+  targetMuscles: [],
+  targetMovementPatterns: [],
 };
 
 const WORKOUT_TABLE_MISSING_CODES = new Set(["42P01", "PGRST205", "PGRST202"]);
@@ -35,6 +37,11 @@ function cleanString(value: unknown) {
 }
 
 function cleanEquipment(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((item): item is string => typeof item === "string").map((item) => item.trim().toLowerCase()).filter(Boolean))];
+}
+
+function cleanStringArray(value: unknown) {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.filter((item): item is string => typeof item === "string").map((item) => item.trim().toLowerCase()).filter(Boolean))];
 }
@@ -68,6 +75,8 @@ function normalizeIntake(value: Partial<WorkoutIntake> | null | undefined): Work
     preferredIntensity: cleanString(value?.preferredIntensity),
     whatToAvoid: cleanString(value?.whatToAvoid),
     sessionBias: cleanSessionBias(value?.sessionBias),
+    targetMuscles: cleanStringArray(value?.targetMuscles),
+    targetMovementPatterns: cleanStringArray(value?.targetMovementPatterns),
   };
 }
 
@@ -85,6 +94,8 @@ function mergeIntake(base: WorkoutIntake, extracted: Partial<WorkoutIntake>) {
     preferredIntensity: clean.preferredIntensity ?? base.preferredIntensity,
     whatToAvoid: clean.whatToAvoid ?? base.whatToAvoid,
     sessionBias: clean.sessionBias ?? base.sessionBias,
+    targetMuscles: clean.targetMuscles.length ? clean.targetMuscles : base.targetMuscles,
+    targetMovementPatterns: clean.targetMovementPatterns.length ? clean.targetMovementPatterns : base.targetMovementPatterns,
   } satisfies WorkoutIntake;
 }
 
@@ -111,6 +122,8 @@ function heuristicExtract(message: string): Partial<WorkoutIntake> {
     level,
     injuriesOrConstraints: noInjuries ? "none" : undefined,
     boxingFocus: coreFocused ? "core" : undefined,
+    targetMuscles: coreFocused ? ["abdominals"] : undefined,
+    targetMovementPatterns: coreFocused ? ["core", "anti-extension", "anti-rotation", "rotation"] : undefined,
     trainingEnvironment,
     preferredIntensity,
     whatToAvoid: nothingToAvoid ? "none" : undefined,
@@ -165,6 +178,8 @@ export function applyWorkoutAssumptions(intake: WorkoutIntake): WorkoutIntake {
     preferredIntensity: intake.preferredIntensity ?? "moderate to hard",
     whatToAvoid: intake.whatToAvoid ?? "none stated",
     sessionBias: intake.sessionBias && intake.sessionBias !== "unknown" ? intake.sessionBias : "mixed",
+    targetMuscles: intake.targetMuscles,
+    targetMovementPatterns: intake.targetMovementPatterns,
   };
 }
 
@@ -177,32 +192,58 @@ export async function extractIntake(messages: WorkoutChatMessage[], existingInta
 }
 
 
-function isCoreFocused(intake: WorkoutIntake) {
+type TargetProfile = {
+  muscles: string[];
+  movementPatterns: string[];
+  boxingQualities: string[];
+  targeted: boolean;
+};
+
+function targetProfileFor(intake: WorkoutIntake): TargetProfile {
   const focus = `${intake.goal ?? ""} ${intake.boxingFocus ?? ""} ${intake.sessionBias ?? ""}`.toLowerCase();
-  return /\b(ab+s?|abs|abdominals?|six[ -]?pack|core|trunk|brace|bracing|obliques?)\b/.test(focus);
+  const muscles = new Set(intake.targetMuscles);
+  const movementPatterns = new Set(intake.targetMovementPatterns);
+  const boxingQualities = new Set<string>();
+
+  const add = (nextMuscles: string[], nextPatterns: string[] = [], nextQualities: string[] = []) => {
+    nextMuscles.forEach((item) => muscles.add(item));
+    nextPatterns.forEach((item) => movementPatterns.add(item));
+    nextQualities.forEach((item) => boxingQualities.add(item));
+  };
+
+  if (/\b(ab+s?|abs|abdominals?|six[ -]?pack|core|trunk|brace|bracing|obliques?)\b/.test(focus)) add(["abdominals"], ["core", "anti-extension", "anti-rotation", "rotation"], ["trunk", "punch-transfer"]);
+  if (/\b(glutes?|hips?)\b/.test(focus)) add(["glutes"], ["hinge", "lunge", "single-leg"], ["legs", "punch-transfer"]);
+  if (/\b(legs?|quads?|hamstrings?|calves|footwork|feet)\b/.test(focus)) add(["quadriceps", "hamstrings", "calves", "glutes"], ["squat", "lunge", "single-leg", "elastic-conditioning"], ["legs", "footwork-base"]);
+  if (/\b(shoulders?|rotator|scap|overhead)\b/.test(focus)) add(["shoulders", "traps"], ["shoulder-health", "push", "pull"], ["shoulder-durability"]);
+  if (/\b(chest|pecs?)\b/.test(focus)) add(["chest"], ["push"], ["general-athleticism"]);
+  if (/\b(back|lats?|rows?|pull)\b/.test(focus)) add(["lats", "middle back", "lower back"], ["pull", "hinge"], ["shoulder-durability"]);
+  if (/\b(arms?|biceps?|triceps?)\b/.test(focus)) add(["biceps", "triceps"], ["push", "pull"], ["general-athleticism"]);
+
+  return {
+    muscles: [...muscles],
+    movementPatterns: [...movementPatterns],
+    boxingQualities: [...boxingQualities],
+    targeted: muscles.size > 0 || movementPatterns.size > 0,
+  };
 }
 
-function isDirectCoreExercise(exercise: CompactExercise) {
-  const title = exercise.title.toLowerCase();
-  const patterns = exercise.movementPatterns.join(" ").toLowerCase();
-  const qualities = exercise.boxingQualities.join(" ").toLowerCase();
-  const muscles = [...exercise.muscles.primary, ...exercise.muscles.secondary].join(" ").toLowerCase();
-  const text = `${title} ${patterns} ${qualities} ${muscles}`;
-  return /\b(plank|crunch|sit[ -]?up|leg raise|knee raise|reverse crunch|dead bug|hollow|v[ -]?up|russian twist|woodchop|pallof|ab |abs|abdominal|oblique|core|anti-extension|anti-rotation|rotation|trunk)\b/.test(text);
-}
-
-function isGeneralLowerOrMachine(exercise: CompactExercise) {
-  const title = exercise.title.toLowerCase();
-  const equipment = [...exercise.equipment, exercise.sourceEquipment ?? ""].join(" ").toLowerCase();
-  return /\b(squat|leg press|lunge|elliptical|treadmill|bike|bicycle|stair|calf|farmers? walk|farmer's walk)\b/.test(`${title} ${equipment}`);
+function exerciseMatchesTarget(exercise: CompactExercise, target: TargetProfile) {
+  if (!target.targeted) return true;
+  const wantedMuscles = normalizedSet(target.muscles);
+  const wantedPatterns = normalizedSet(target.movementPatterns);
+  const primaryMatch = exercise.muscles.primary.some((muscle) => wantedMuscles.has(muscle.trim().toLowerCase()));
+  const secondaryMatch = exercise.muscles.secondary.some((muscle) => wantedMuscles.has(muscle.trim().toLowerCase()));
+  const patternMatch = exercise.movementPatterns.some((pattern) => wantedPatterns.has(pattern.trim().toLowerCase()));
+  return primaryMatch || patternMatch || (target.muscles.length === 1 && secondaryMatch);
 }
 
 function searchConfigFor(intake: WorkoutIntake) {
   const focus = `${intake.goal ?? ""} ${intake.boxingFocus ?? ""}`.toLowerCase();
+  const target = targetProfileFor(intake);
   const config = {
-    boxingQualities: [] as string[],
-    movementPatterns: [] as string[],
-    muscles: [] as string[],
+    boxingQualities: [...target.boxingQualities] as string[],
+    movementPatterns: [...target.movementPatterns] as string[],
+    muscles: [...target.muscles] as string[],
   };
 
   if (/gas|engine|conditioning|stamina|fitness|cardio|tired|fatigue/.test(focus)) {
@@ -244,7 +285,8 @@ function searchConfigFor(intake: WorkoutIntake) {
 
 function searchTermsFor(intake: WorkoutIntake) {
   const focus = `${intake.goal ?? ""} ${intake.boxingFocus ?? ""}`.toLowerCase();
-  const terms = ["squat", "lunge", "push", "row", "plank", "bridge", "rotation", "jump", "stretch"];
+  const target = targetProfileFor(intake);
+  const terms = target.targeted ? [...target.muscles, ...target.movementPatterns] : ["squat", "lunge", "push", "row", "plank", "bridge", "rotation", "jump", "stretch"];
 
   if (focus.includes("glute") || focus.includes("hip")) terms.push("glute", "hip", "bridge", "lunge", "squat", "thrust");
   if (focus.includes("shoulder")) terms.push("shoulder", "external rotation", "press");
@@ -290,6 +332,7 @@ function intersects(values: string[], wanted: Set<string>) {
 function scoreExerciseCandidate(exercise: CompactExercise, intake: WorkoutIntake, config: ReturnType<typeof searchConfigFor>, terms: string[], equipment?: string, difficulty?: string) {
   let score = 0;
   const reasons: string[] = [];
+  const target = targetProfileFor(intake);
   const wantedQualities = normalizedSet(config.boxingQualities);
   const wantedPatterns = normalizedSet(config.movementPatterns);
   const wantedMuscles = normalizedSet(config.muscles);
@@ -317,17 +360,27 @@ function scoreExerciseCandidate(exercise: CompactExercise, intake: WorkoutIntake
     reasons.push("muscle-match");
   }
 
-  if (isCoreFocused(intake)) {
-    if (isDirectCoreExercise(exercise)) {
-      score += 34;
-      reasons.push("direct-core");
-    } else {
-      score -= 48;
-      reasons.push("not-direct-core");
+  if (target.targeted) {
+    const targetMuscles = normalizedSet(target.muscles);
+    const targetPatterns = normalizedSet(target.movementPatterns);
+    const primaryMatches = exercise.muscles.primary.filter((muscle) => targetMuscles.has(muscle.trim().toLowerCase()));
+    const secondaryMatches = exercise.muscles.secondary.filter((muscle) => targetMuscles.has(muscle.trim().toLowerCase()));
+    const patternMatches = exercise.movementPatterns.filter((pattern) => targetPatterns.has(pattern.trim().toLowerCase()));
+    if (primaryMatches.length) {
+      score += 36 * primaryMatches.length;
+      reasons.push(`target-primary:${primaryMatches.join("/")}`);
     }
-    if (isGeneralLowerOrMachine(exercise)) {
-      score -= 36;
-      reasons.push("core-intent-suppressed-general-work");
+    if (secondaryMatches.length) {
+      score += 14 * secondaryMatches.length;
+      reasons.push(`target-secondary:${secondaryMatches.join("/")}`);
+    }
+    if (patternMatches.length) {
+      score += 24 * patternMatches.length;
+      reasons.push(`target-pattern:${patternMatches.join("/")}`);
+    }
+    if (!primaryMatches.length && !secondaryMatches.length && !patternMatches.length) {
+      score -= 42;
+      reasons.push("misses-target");
     }
   }
   if (equipment) {
@@ -419,11 +472,11 @@ export async function gatherExerciseCandidates(intake: WorkoutIntake, rejectedEx
   if (candidateMap.size < 30 && equipment) add((await searchExercises({ difficulty: levels, limit: 100 })).data);
 
   const rejected = new Set(rejectedExerciseIds);
-  const seed = `${intake.goal ?? ""}|${intake.boxingFocus ?? ""}|${intake.equipment.join(",")}|${new Date().toISOString().slice(0, 10)}`;
-  const coreFocused = isCoreFocused(intake);
+  const seed = `${intake.goal ?? ""}|${intake.boxingFocus ?? ""}|${intake.targetMuscles.join(",")}|${intake.targetMovementPatterns.join(",")}|${intake.equipment.join(",")}|${new Date().toISOString().slice(0, 10)}`;
+  const target = targetProfileFor(intake);
   const scored = [...candidateMap.values()]
     .filter((exercise) => !rejected.has(exercise.id) && exercise.imageUrls.length > 0)
-    .filter((exercise) => !coreFocused || isDirectCoreExercise(exercise))
+    .filter((exercise) => exerciseMatchesTarget(exercise, target))
     .map((exercise) => scoreExerciseCandidate(exercise, intake, config, terms, equipment, levels))
     .filter((item) => item.score > 0);
 
@@ -464,58 +517,59 @@ export async function generateWorkout(intake: WorkoutIntake, candidates: Compact
     throw new Error("No matching exercises were found for this intake.");
   }
 
-  const coreFocused = isCoreFocused(intake);
-  const coreCandidates = coreFocused ? candidates.filter(isDirectCoreExercise) : candidates;
-  const fallback: GeneratedWorkout = coreFocused
+  const target = targetProfileFor(intake);
+  const targetedCandidates = target.targeted ? candidates.filter((exercise) => exerciseMatchesTarget(exercise, target)) : candidates;
+  const targetLabel = target.muscles.length ? target.muscles.join("/") : target.movementPatterns.join("/");
+  const fallback: GeneratedWorkout = target.targeted
     ? {
-        title: "Core Session Preview",
-        summary: "A trunk-focused session built around direct abs and anti-rotation work.",
+        title: "Targeted Conditioning Preview",
+        summary: `A targeted session built around ${targetLabel || "the requested training focus"}.`,
         durationMinutes: intake.timeMinutes ?? 30,
         difficulty: intake.level === "beginner" || intake.level === "advanced" ? intake.level : "intermediate",
         equipment: intake.equipment,
         blocks: ([
           {
             type: "warmup",
-            title: "Core prep",
-            items: coreCandidates.slice(0, 2).map((exercise) => ({
+            title: "Targeted prep",
+            items: targetedCandidates.slice(0, 2).map((exercise) => ({
               exerciseId: exercise.id,
               sets: 2,
               reps: "8-12 controlled reps",
               durationSeconds: null,
               restSeconds: 20,
               tempo: null,
-              coachingNote: "Brace first, move second. Keep the ribs down and pelvis controlled.",
+              coachingNote: "Prep the area you asked to train. Keep it clean and controlled.",
             })),
           },
           {
-            type: "core",
-            title: "Abs and trunk work",
-            items: coreCandidates.slice(2, 6).map((exercise) => ({
+            type: target.muscles.includes("abdominals") || target.movementPatterns.includes("core") ? "core" : "strength",
+            title: "Main targeted work",
+            items: targetedCandidates.slice(2, 6).map((exercise) => ({
               exerciseId: exercise.id,
               sets: 3,
-              reps: "10-15 or 30-40 seconds",
+              reps: "8-15 or 30-40 seconds",
               durationSeconds: null,
               restSeconds: 45,
               tempo: "controlled",
-              coachingNote: "Make the abs do the work. No swinging, no hip-flexor panic reps.",
+              coachingNote: "Make the target area do the work. No sloppy reps just to make it harder.",
             })),
           },
           {
-            type: "core",
-            title: "Boxing brace finisher",
-            items: coreCandidates.slice(6, 8).map((exercise) => ({
+            type: target.muscles.includes("abdominals") || target.movementPatterns.includes("core") ? "core" : "conditioning",
+            title: "Targeted finisher",
+            items: targetedCandidates.slice(6, 8).map((exercise) => ({
               exerciseId: exercise.id,
               sets: 2,
               reps: null,
               durationSeconds: 40,
               restSeconds: 20,
               tempo: null,
-              coachingNote: "Hold shape under fatigue so your trunk does not leak power late in rounds.",
+              coachingNote: "Finish with quality under fatigue without drifting into a random full-body circuit.",
             })),
           },
         ] satisfies GeneratedWorkoutBlock[]).filter((block) => block.items.length),
         safetyNotes: intake.injuriesOrConstraints && !["none", "none stated"].includes(intake.injuriesOrConstraints.toLowerCase()) ? [`Respect this constraint: ${intake.injuriesOrConstraints}.`] : [],
-        progressionNote: "Progress by adding cleaner time under tension, not by turning it into a random full-body circuit.",
+        progressionNote: "Progress the target area with cleaner volume first, then harder variations.",
       }
     : {
         title: "Oracle Conditioning Preview",

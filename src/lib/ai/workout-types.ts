@@ -12,6 +12,8 @@ export type WorkoutIntake = {
   preferredIntensity: string | null;
   whatToAvoid: string | null;
   sessionBias: "strength" | "power" | "conditioning" | "mobility" | "mixed" | "unknown" | null;
+  targetMuscles: string[];
+  targetMovementPatterns: string[];
 };
 
 export type WorkoutChatMessage = {
