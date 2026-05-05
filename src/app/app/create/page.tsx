@@ -25,6 +25,23 @@ type LoadChatResponse = {
   warning?: string;
 };
 
+
+function AnimatedThinking({ status }: { status: string | null }) {
+  const [dotCount, setDotCount] = useState(1);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setDotCount((current) => (current >= 3 ? 1 : current + 1));
+    }, 360);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  if (status && status !== "Thinking...") return <>{status}</>;
+
+  return <>Thinking{".".repeat(dotCount)}</>;
+}
+
 function PromptBar({
   input,
   loading,
@@ -431,7 +448,7 @@ export default function CreateWorkoutPage() {
             {loading && (
               <div className="flex justify-start">
                 <div className="max-w-3xl text-sm font-medium leading-7 text-black">
-                  {status ?? "Typing..."}
+                  <AnimatedThinking status={status} />
                 </div>
               </div>
             )}
