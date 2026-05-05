@@ -124,7 +124,7 @@ function PromptBar({
           ♫
         </button>
         <button disabled={loading || !input.trim()} aria-label="Send" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40">
-          <span className="text-[13px] leading-none">▮▮</span>
+          <span className="text-lg leading-none">↑</span>
         </button>
       </div>
     </form>
