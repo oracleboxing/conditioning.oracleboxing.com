@@ -53,6 +53,37 @@ export type ExerciseRow = {
   updated_at: string | null;
 };
 
+export type WorkoutRow = {
+  id: string;
+  user_id: string;
+  title: string;
+  goal: string | null;
+  duration_minutes: number | null;
+  difficulty: string | null;
+  equipment: string[] | null;
+  visibility: "private" | "community";
+  intake_summary: string | null;
+  ai_model: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type WorkoutItemRow = {
+  id: string;
+  workout_id: string;
+  exercise_id: string | null;
+  order_index: number;
+  block_type: string;
+  block_title: string | null;
+  sets: number | null;
+  reps: string | null;
+  duration_seconds: number | null;
+  rest_seconds: number | null;
+  tempo: string | null;
+  coaching_note: string | null;
+  created_at: string | null;
+};
+
 export type MemberAccessRow = {
   user_id: string;
   tier: string;
@@ -108,6 +139,16 @@ export type Database = {
         Row: ExerciseRow;
         Insert: Partial<ExerciseRow> & Pick<ExerciseRow, "title">;
         Update: Partial<ExerciseRow>;
+      };
+      workouts: {
+        Row: WorkoutRow;
+        Insert: Partial<WorkoutRow> & Pick<WorkoutRow, "user_id" | "title">;
+        Update: Partial<WorkoutRow>;
+      };
+      workout_items: {
+        Row: WorkoutItemRow;
+        Insert: Partial<WorkoutItemRow> & Pick<WorkoutItemRow, "workout_id" | "order_index" | "block_type">;
+        Update: Partial<WorkoutItemRow>;
       };
       member_access: {
         Row: MemberAccessRow;
