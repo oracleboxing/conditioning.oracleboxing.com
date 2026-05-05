@@ -84,7 +84,8 @@ function ExerciseCard({
   ].filter(Boolean).join(" · ");
 
   return (
-    <div className="flex gap-4 border-t border-zinc-100 py-5 first:border-t-0">
+    <div className="rounded-2xl border border-zinc-100 bg-zinc-50/45 p-4 sm:p-5">
+      <div className="flex gap-4">
       {item.exercise?.imageUrls?.length ? (
         <div className="flex shrink-0 gap-2">
           {item.exercise.imageUrls.slice(0, 2).map((url, imageIndex) => (
@@ -99,10 +100,11 @@ function ExerciseCard({
           ))}
         </div>
       ) : null}
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 pr-1">
         <h4 className="text-base font-semibold text-black">{item.exercise?.title ?? item.exerciseId}</h4>
         {prescription && <p className="mt-1 text-sm font-medium text-zinc-600">{prescription}</p>}
-        <p className="mt-2 text-sm leading-6 text-zinc-600">{item.coachingNote}</p>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">{item.coachingNote}</p>
+      </div>
       </div>
     </div>
   );
@@ -118,7 +120,7 @@ function WorkoutPreview({
   warnings: string[];
 }) {
   return (
-    <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-7">
+    <section className="rounded-3xl border border-zinc-200 bg-white p-7 shadow-sm sm:p-9 2xl:p-10">
       <div>
         <h2 className="text-3xl font-semibold tracking-tight text-black">{workout.title}</h2>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">{workout.summary}</p>
@@ -126,9 +128,9 @@ function WorkoutPreview({
 
       <div className="mt-7 space-y-5">
         {workout.blocks.map((block, blockIndex) => (
-          <div key={`${block.type}-${blockIndex}`} className="border-t border-zinc-200 pt-5 first:border-t-0 first:pt-0">
+          <div key={`${block.type}-${blockIndex}`} className="border-t border-zinc-200 pt-6 first:border-t-0 first:pt-0">
             <h3 className="text-xl font-semibold text-black">{block.title}</h3>
-            <div className="mt-3">
+            <div className="mt-4 grid gap-3 2xl:grid-cols-2">
               {block.items.map((item, itemIndex) => (
                 <ExerciseCard key={`${item.exerciseId}-${itemIndex}`} item={item} />
               ))}
