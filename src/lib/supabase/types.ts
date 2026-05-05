@@ -46,6 +46,14 @@ export type ExerciseRow = {
   common_mistakes_json: Json | null;
   equipment_tags: string[] | null;
   difficulty: string | null;
+  force?: string | null;
+  mechanic?: string | null;
+  source_equipment?: string | null;
+  primary_muscles?: string[] | null;
+  secondary_muscles?: string[] | null;
+  image_urls?: string[] | null;
+  movement_patterns?: string[] | null;
+  boxing_qualities?: string[] | null;
   structure_json: ExerciseStructureJson | null;
   is_active: boolean | null;
   is_curated: boolean | null;

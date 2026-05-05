@@ -114,6 +114,52 @@ export async function extractIntake(messages: WorkoutChatMessage[], existingInta
   return mergeIntake(current, extracted);
 }
 
+
+function searchConfigFor(intake: WorkoutIntake) {
+  const focus = `${intake.goal ?? ""} ${intake.boxingFocus ?? ""}`.toLowerCase();
+  const config = {
+    boxingQualities: [] as string[],
+    movementPatterns: [] as string[],
+    muscles: [] as string[],
+  };
+
+  if (/gas|engine|conditioning|stamina|fitness|cardio|tired|fatigue/.test(focus)) {
+    config.boxingQualities.push("gas-tank", "repeat-efforts");
+    config.movementPatterns.push("elastic-conditioning", "core");
+  }
+  if (/power|punch|explosive|snap|rotation/.test(focus)) {
+    config.boxingQualities.push("power", "punch-transfer", "trunk");
+    config.movementPatterns.push("rotation", "anti-rotation", "hinge", "squat");
+    config.muscles.push("abdominals", "glutes", "quadriceps");
+  }
+  if (/footwork|feet|legs|bounce|movement/.test(focus)) {
+    config.boxingQualities.push("footwork-base", "legs", "repeat-efforts");
+    config.movementPatterns.push("single-leg", "lunge", "squat", "elastic-conditioning");
+    config.muscles.push("calves", "quadriceps", "glutes");
+  }
+  if (/shoulder|rotator|arm|durability|prehab/.test(focus)) {
+    config.boxingQualities.push("shoulder-durability");
+    config.movementPatterns.push("shoulder-health", "pull", "push");
+    config.muscles.push("shoulders", "traps", "lats");
+  }
+  if (/core|trunk|abs|brace/.test(focus)) {
+    config.boxingQualities.push("trunk", "punch-transfer");
+    config.movementPatterns.push("anti-extension", "anti-rotation", "rotation", "core");
+    config.muscles.push("abdominals");
+  }
+  if (/mobility|stretch|recover|recovery|loosen/.test(focus)) {
+    config.boxingQualities.push("mobility-recovery");
+    config.movementPatterns.push("mobility");
+  }
+
+  if (!config.boxingQualities.length) config.boxingQualities.push("general-athleticism");
+  return {
+    boxingQualities: [...new Set(config.boxingQualities)],
+    movementPatterns: [...new Set(config.movementPatterns)],
+    muscles: [...new Set(config.muscles)],
+  };
+}
+
 function searchTermsFor(intake: WorkoutIntake) {
   const focus = `${intake.goal ?? ""} ${intake.boxingFocus ?? ""}`.toLowerCase();
   const terms = ["squat", "lunge", "push", "row", "plank", "bridge", "rotation", "jump", "stretch"];
@@ -152,8 +198,28 @@ export async function gatherExerciseCandidates(intake: WorkoutIntake, rejectedEx
   const levels = intake.level && intake.level !== "unknown" ? intake.level : undefined;
   const candidateMap = new Map<string, CompactExercise>();
 
+  const config = searchConfigFor(intake);
+
   const broad = await searchExercises({ equipment, difficulty: levels, limit: 30 });
   broad.data.forEach((exercise) => candidateMap.set(exercise.id, exercise));
+
+  for (const boxingQuality of config.boxingQualities) {
+    if (candidateMap.size >= 80) break;
+    const result = await searchExercises({ boxingQuality, equipment, difficulty: levels, limit: 14 });
+    result.data.forEach((exercise) => candidateMap.set(exercise.id, exercise));
+  }
+
+  for (const movementPattern of config.movementPatterns) {
+    if (candidateMap.size >= 80) break;
+    const result = await searchExercises({ movementPattern, equipment, difficulty: levels, limit: 10 });
+    result.data.forEach((exercise) => candidateMap.set(exercise.id, exercise));
+  }
+
+  for (const muscle of config.muscles) {
+    if (candidateMap.size >= 80) break;
+    const result = await searchExercises({ muscle, equipment, difficulty: levels, limit: 8 });
+    result.data.forEach((exercise) => candidateMap.set(exercise.id, exercise));
+  }
 
   for (const term of searchTermsFor(intake)) {
     if (candidateMap.size >= 80) break;

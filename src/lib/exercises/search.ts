@@ -1,11 +1,11 @@
 import { getServerSupabaseClient } from "@/lib/supabase/server";
-import type { ExerciseRow, ExerciseStructureJson, Json } from "@/lib/supabase/types";
+import type { ExerciseRow, Json } from "@/lib/supabase/types";
 
 const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 100;
 const MUSCLE_SCAN_LIMIT = 1000;
 
-const EXERCISE_SELECT = [
+const BASE_EXERCISE_SELECT = [
   "id",
   "title",
   "slug",
@@ -19,11 +19,25 @@ const EXERCISE_SELECT = [
   "is_active",
 ].join(",");
 
+const ENRICHED_EXERCISE_SELECT = [
+  BASE_EXERCISE_SELECT,
+  "force",
+  "mechanic",
+  "source_equipment",
+  "primary_muscles",
+  "secondary_muscles",
+  "image_urls",
+  "movement_patterns",
+  "boxing_qualities",
+].join(",");
+
 export type ExerciseSearchParams = {
   q?: string | null;
   equipment?: string | null;
   category?: string | null;
   muscle?: string | null;
+  movementPattern?: string | null;
+  boxingQuality?: string | null;
   level?: string | null;
   difficulty?: string | null;
   limit?: string | number | null;
@@ -43,6 +57,11 @@ export type CompactExercise = {
   instructionsSummary: string | null;
   imageUrl: string | null;
   imageUrls: string[];
+  force: string | null;
+  mechanic: string | null;
+  sourceEquipment: string | null;
+  movementPatterns: string[];
+  boxingQualities: string[];
 };
 
 export type ExerciseSearchResult = {
@@ -55,6 +74,8 @@ export type ExerciseSearchResult = {
       equipment: string[];
       category: string[];
       muscle: string[];
+      movementPattern: string[];
+      boxingQuality: string[];
       difficulty: string[];
     };
   };
@@ -102,18 +123,23 @@ function summarizeInstructions(row: Pick<ExerciseRow, "instructions_json" | "des
   return oneLine.length > 220 ? `${oneLine.slice(0, 217).trimEnd()}...` : oneLine;
 }
 
-function imageUrlsFrom(structure: ExerciseStructureJson | null) {
+function imageUrlsFrom(row: Pick<ExerciseRow, "structure_json" | "image_urls">) {
+  const columnUrls = Array.isArray(row.image_urls) ? row.image_urls : [];
+  const structure = row.structure_json;
   const imagePaths = jsonArray(structure?.image_paths);
   const storageUrls = jsonArray(structure?.source_payload?.storage_image_urls);
-  return [...new Set([...imagePaths, ...storageUrls].filter((url) => /^https?:\/\//i.test(url)))];
+  return [...new Set([...columnUrls, ...imagePaths, ...storageUrls].filter((url) => /^https?:\/\//i.test(url)))];
 }
 
-function musclesFrom(structure: ExerciseStructureJson | null) {
+function musclesFrom(row: Pick<ExerciseRow, "structure_json" | "primary_muscles" | "secondary_muscles">) {
+  const structure = row.structure_json;
   const primary = [
+    ...(Array.isArray(row.primary_muscles) ? row.primary_muscles : []),
     ...jsonArray(structure?.primary_muscles),
     ...jsonArray(structure?.source_payload?.primaryMuscles),
   ];
   const secondary = [
+    ...(Array.isArray(row.secondary_muscles) ? row.secondary_muscles : []),
     ...jsonArray(structure?.secondary_muscles),
     ...jsonArray(structure?.source_payload?.secondaryMuscles),
   ];
@@ -124,28 +150,33 @@ function musclesFrom(structure: ExerciseStructureJson | null) {
   };
 }
 
-function matchesMuscle(row: Pick<ExerciseRow, "structure_json">, muscles: string[]) {
+function matchesMuscle(row: Pick<ExerciseRow, "structure_json" | "primary_muscles" | "secondary_muscles">, muscles: string[]) {
   if (!muscles.length) return true;
   const wanted = muscles.map(normalizeToken);
-  const rowMuscles = musclesFrom(row.structure_json);
+  const rowMuscles = musclesFrom(row);
   const available = [...rowMuscles.primary, ...rowMuscles.secondary].map(normalizeToken);
 
   return wanted.some((muscle) => available.some((candidate) => candidate === muscle || candidate.includes(muscle)));
 }
 
 function toCompactExercise(row: ExerciseRow): CompactExercise {
-  const imageUrls = imageUrlsFrom(row.structure_json);
+  const imageUrls = imageUrlsFrom(row);
   return {
     id: row.id,
     slug: row.slug ?? row.id,
     title: row.title,
     equipment: row.equipment_tags ?? [],
     category: row.category,
-    muscles: musclesFrom(row.structure_json),
+    muscles: musclesFrom(row),
     difficulty: row.difficulty,
     instructionsSummary: summarizeInstructions(row),
     imageUrl: imageUrls[0] ?? null,
     imageUrls,
+    force: row.force ?? row.structure_json?.force ?? row.structure_json?.source_payload?.force ?? null,
+    mechanic: row.mechanic ?? row.structure_json?.mechanic ?? row.structure_json?.source_payload?.mechanic ?? null,
+    sourceEquipment: row.source_equipment ?? row.structure_json?.source_payload?.equipment ?? row.equipment_tags?.[0] ?? null,
+    movementPatterns: row.movement_patterns ?? [],
+    boxingQualities: row.boxing_qualities ?? [],
   };
 }
 
@@ -154,45 +185,51 @@ export async function searchExercises(params: ExerciseSearchParams): Promise<Exe
   const equipment = splitFilter(params.equipment);
   const category = splitFilter(params.category);
   const muscle = splitFilter(params.muscle);
+  const movementPattern = splitFilter(params.movementPattern);
+  const boxingQuality = splitFilter(params.boxingQuality);
   const difficulty = splitFilter(params.difficulty ?? params.level);
   const limit = parseLimit(params.limit);
 
   const supabase = getServerSupabaseClient();
-  let query = supabase
-    .from("exercises")
-    .select(EXERCISE_SELECT)
-    .eq("is_active", true)
-    .eq("structure_json->>source", "free-exercise-db")
-    .order("title", { ascending: true });
+  const scanLimit = muscle.length || movementPattern.length || boxingQuality.length || limit < MUSCLE_SCAN_LIMIT ? MUSCLE_SCAN_LIMIT : limit;
 
-  if (q) {
-    const term = escapeIlike(q);
-    query = query.or(`title.ilike.%${term}%,slug.ilike.%${term}%,summary.ilike.%${term}%,description.ilike.%${term}%`);
+  const buildQuery = (select: string) => {
+    let query = supabase
+      .from("exercises")
+      .select(select)
+      .eq("is_active", true)
+      .eq("structure_json->>source", "free-exercise-db")
+      .order("title", { ascending: true });
+
+    if (q) {
+      const term = escapeIlike(q);
+      query = query.or(`title.ilike.%${term}%,slug.ilike.%${term}%,summary.ilike.%${term}%,description.ilike.%${term}%`);
+    }
+
+    if (equipment.length) query = query.overlaps("equipment_tags", equipment);
+    if (category.length) query = query.in("category", category);
+    if (difficulty.length) query = query.in("difficulty", difficulty);
+
+    return query.limit(scanLimit);
+  };
+
+  let { data, error } = await buildQuery(ENRICHED_EXERCISE_SELECT);
+  if (error && /column|schema cache|could not find/i.test(error.message)) {
+    const fallback = await buildQuery(BASE_EXERCISE_SELECT);
+    data = fallback.data;
+    error = fallback.error;
   }
 
-  if (equipment.length) {
-    query = query.overlaps("equipment_tags", equipment);
-  }
+  if (error) throw new Error(`Exercise search failed: ${error.message}`);
 
-  if (category.length) {
-    query = query.in("category", category);
-  }
-
-  if (difficulty.length) {
-    query = query.in("difficulty", difficulty);
-  }
-
-  const scanLimit = muscle.length || limit < MUSCLE_SCAN_LIMIT ? MUSCLE_SCAN_LIMIT : limit;
-  const { data, error } = await query.limit(scanLimit);
-
-  if (error) {
-    throw new Error(`Exercise search failed: ${error.message}`);
-  }
-
+  const wantedPatterns = movementPattern.map(normalizeToken);
+  const wantedQualities = boxingQuality.map(normalizeToken);
   const filtered = (data ?? [])
     .filter((row) => matchesMuscle(row, muscle))
     .map(toCompactExercise)
     .filter((exercise) => exercise.imageUrls.length > 0)
+    .filter((exercise) => !wantedPatterns.length || wantedPatterns.some((pattern) => exercise.movementPatterns.map(normalizeToken).includes(pattern)))
+    .filter((exercise) => !wantedQualities.length || wantedQualities.some((quality) => exercise.boxingQualities.map(normalizeToken).includes(quality)))
     .slice(0, limit);
 
   return {
@@ -205,6 +242,8 @@ export async function searchExercises(params: ExerciseSearchParams): Promise<Exe
         equipment,
         category,
         muscle,
+        movementPattern,
+        boxingQuality,
         difficulty,
       },
     },

@@ -32,6 +32,10 @@ create table if not exists public.exercises (
   secondary_muscles text[] default '{}',
   instructions text[] default '{}',
   image_paths text[] default '{}',
+  source_equipment text,
+  image_urls text[] default '{}',
+  movement_patterns text[] default '{}',
+  boxing_qualities text[] default '{}',
   source text not null default 'free-exercise-db',
   source_payload jsonb not null default '{}'::jsonb,
   created_at timestamptz default now(),
@@ -42,6 +46,10 @@ create index if not exists exercises_name_trgm_idx on public.exercises using gin
 create index if not exists exercises_equipment_idx on public.exercises (equipment);
 create index if not exists exercises_category_idx on public.exercises (category);
 create index if not exists exercises_primary_muscles_idx on public.exercises using gin (primary_muscles);
+create index if not exists exercises_secondary_muscles_idx on public.exercises using gin (secondary_muscles);
+create index if not exists exercises_image_urls_idx on public.exercises using gin (image_urls);
+create index if not exists exercises_movement_patterns_idx on public.exercises using gin (movement_patterns);
+create index if not exists exercises_boxing_qualities_idx on public.exercises using gin (boxing_qualities);
 
 create table if not exists public.workouts (
   id uuid primary key default gen_random_uuid(),

@@ -149,6 +149,45 @@ function publicImageUrl(supabaseUrl, bucket, objectPath) {
   return `${supabaseUrl}/storage/v1/object/public/${bucket}/${objectPath.split('/').map(encodeURIComponent).join('/')}`;
 }
 
+
+function uniqueLower(items) {
+  return [...new Set(items.filter(Boolean).map((item) => String(item).trim().toLowerCase()).filter(Boolean))];
+}
+
+function deriveMovementPatterns(exercise) {
+  const haystack = `${exercise.name || ''} ${exercise.category || ''} ${exercise.equipment || ''} ${(exercise.primaryMuscles || []).join(' ')} ${(exercise.secondaryMuscles || []).join(' ')}`.toLowerCase();
+  const patterns = [];
+
+  if (/squat|leg press|wall sit/.test(haystack)) patterns.push('squat');
+  if (/lunge|split squat|step-up|step up/.test(haystack)) patterns.push('lunge', 'single-leg');
+  if (/deadlift|hinge|good morning|pull-through|pull through|hyperextension/.test(haystack)) patterns.push('hinge');
+  if (/press|push-up|pushup|dip|chest/.test(haystack)) patterns.push('push');
+  if (/row|pull-up|pullup|pulldown|chin-up|chinup/.test(haystack)) patterns.push('pull');
+  if (/plank|rollout|dead bug|hollow|stabil/.test(haystack)) patterns.push('anti-extension', 'core');
+  if (/twist|rotation|woodchop|russian|landmine/.test(haystack)) patterns.push('rotation', 'core');
+  if (/pallof|side plank|anti-rotation/.test(haystack)) patterns.push('anti-rotation', 'core');
+  if (/calf|jump|hop|box jump|burpee|mountain climber|skater/.test(haystack)) patterns.push('elastic-conditioning');
+  if (/stretch|mobility|foam roll|raise|circle/.test(haystack)) patterns.push('mobility');
+  if (/external rotation|face pull|rear delt|scap|shoulder/.test(haystack)) patterns.push('shoulder-health');
+
+  return uniqueLower(patterns);
+}
+
+function deriveBoxingQualities(exercise) {
+  const haystack = `${exercise.name || ''} ${exercise.category || ''} ${exercise.equipment || ''} ${(exercise.primaryMuscles || []).join(' ')} ${(exercise.secondaryMuscles || []).join(' ')}`.toLowerCase();
+  const patterns = deriveMovementPatterns(exercise);
+  const qualities = [];
+
+  if (patterns.some((pattern) => ['rotation', 'anti-rotation', 'anti-extension', 'core'].includes(pattern))) qualities.push('trunk', 'punch-transfer');
+  if (/glutes|hamstrings|quadriceps|calves|adductors|abductors/.test(haystack) || patterns.some((pattern) => ['squat', 'lunge', 'hinge', 'single-leg'].includes(pattern))) qualities.push('legs', 'footwork-base');
+  if (/jump|burpee|mountain climber|rope|cardio|plyometric/.test(haystack) || patterns.includes('elastic-conditioning')) qualities.push('gas-tank', 'repeat-efforts');
+  if (/shoulder|rotator|scap|traps|rear delt|lat/.test(haystack) || patterns.includes('shoulder-health')) qualities.push('shoulder-durability');
+  if (/medicine ball|plyometric|power|explosive|jump|clean|snatch|kettlebell/.test(haystack)) qualities.push('power');
+  if (/stretch|mobility|foam roll/.test(haystack) || patterns.includes('mobility')) qualities.push('mobility-recovery');
+
+  return uniqueLower(qualities.length ? qualities : ['general-athleticism']);
+}
+
 function normalizeDifficulty(level) {
   if (level === 'expert') return 'advanced';
   return level || null;
@@ -175,6 +214,14 @@ function adaptExercise(exercise, imageUrls = []) {
     common_mistakes_json: [],
     equipment_tags: exercise.equipment ? [exercise.equipment] : [],
     difficulty: normalizeDifficulty(exercise.level),
+    force: exercise.force || null,
+    mechanic: exercise.mechanic || null,
+    source_equipment: exercise.equipment || null,
+    primary_muscles: exercise.primaryMuscles || [],
+    secondary_muscles: exercise.secondaryMuscles || [],
+    image_urls: imageUrls,
+    movement_patterns: deriveMovementPatterns(exercise),
+    boxing_qualities: deriveBoxingQualities(exercise),
     structure_json: {
       source: 'free-exercise-db',
       source_id: exercise.id || null,
@@ -282,6 +329,13 @@ async function findExistingBySlug(config, slugs) {
   return new Map(rows.map((row) => [row.slug, row.id]));
 }
 
+
+function filterRecordToColumns(record, columns) {
+  if (!columns?.length) return record;
+  const allowed = new Set(columns);
+  return Object.fromEntries(Object.entries(record).filter(([key]) => allowed.has(key)));
+}
+
 async function insertRecords(config, records) {
   if (!records.length) return;
   const response = await request(`${config.supabaseUrl}/rest/v1/exercises`, {
@@ -309,7 +363,7 @@ async function updateRecord(config, id, record) {
   if (!response.ok) throw new Error(`Update failed for ${record.slug}: HTTP ${response.status} ${text.slice(0, 500)}`);
 }
 
-async function importExercises(config, exercises) {
+async function importExercises(config, exercises, columns) {
   let inserted = 0;
   let updated = 0;
   let imagesUploaded = 0;
@@ -326,7 +380,7 @@ async function importExercises(config, exercises) {
       try {
         const imageUrls = await uploadImagesForExercise(config, exercise);
         imagesUploaded += imageUrls.length;
-        const record = adaptExercise(exercise, imageUrls);
+        const record = filterRecordToColumns(adaptExercise(exercise, imageUrls), columns);
         const existingId = existing.get(record.slug);
         if (existingId) updates.push({ id: existingId, record });
         else inserts.push(record);
@@ -413,7 +467,7 @@ async function main() {
   const bucketResult = await ensureBucket(config);
   console.log(`Storage bucket ${BUCKET}: ${bucketResult.created ? 'created' : 'exists'}`);
 
-  const results = await importExercises(config, selected);
+  const results = await importExercises(config, selected, columns);
   const verification = await verify(config);
   console.log(JSON.stringify({ results, verification }, null, 2));
 }
