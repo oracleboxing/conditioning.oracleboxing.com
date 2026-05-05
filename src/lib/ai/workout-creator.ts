@@ -103,10 +103,22 @@ function transcriptFrom(messages: WorkoutChatMessage[]) {
   return messages.map((message) => `${message.role}: ${message.content}`).join("\n").slice(-5000);
 }
 
+function normalizeEquipmentToken(value: string) {
+  const item = value.trim().toLowerCase();
+  if (/full gym|commercial gym|gym access|all equipment|any equipment|everything/.test(item)) return "full gym";
+  if (/resistance bands?|bands?|mini bands?|loop bands?/.test(item)) return "bands";
+  if (/dumbbells?|dbs?/.test(item)) return "dumbbells";
+  if (/kettlebells?|kbs?/.test(item)) return "kettlebells";
+  if (/barbells?/.test(item)) return "barbell";
+  if (/body ?weight|none|no equipment/.test(item)) return "bodyweight";
+  return item;
+}
+
 function heuristicExtract(message: string): Partial<WorkoutIntake> {
   const lower = message.toLowerCase();
   const minutes = lower.match(/(\d{2,3})\s*(min|mins|minutes|m)\b/)?.[1];
-  const equipment = ["bodyweight", "dumbbell", "dumbbells", "kettlebell", "barbell", "band", "bands", "bench", "pull-up bar", "medicine ball"].filter((item) => lower.includes(item));
+  const equipment = ["bodyweight", "dumbbell", "dumbbells", "kettlebell", "kettlebells", "barbell", "band", "bands", "bench", "pull-up bar", "medicine ball"].filter((item) => lower.includes(item));
+  if (/resitance band|resistance band|loop band|mini band/.test(lower)) equipment.push("bands");
   if (/full gym|commercial gym|gym access|all equipment|any equipment/.test(lower)) equipment.push("full gym");
   const level = lower.includes("beginner") ? "beginner" : lower.includes("advanced") ? "advanced" : lower.includes("intermediate") ? "intermediate" : undefined;
   const noInjuries = /no (injuries|pain|issues|constraints)/i.test(message);
@@ -118,7 +130,7 @@ function heuristicExtract(message: string): Partial<WorkoutIntake> {
 
   return {
     goal: message.length > 8 || coreFocused ? message : undefined,
-    equipment: equipment.length ? equipment.map((item) => item.replace(/s$/, "")) : undefined,
+    equipment: equipment.length ? [...new Set(equipment.map(normalizeEquipmentToken))] : undefined,
     timeMinutes: minutes ? Number(minutes) : undefined,
     level,
     injuriesOrConstraints: noInjuries ? "none" : undefined,
@@ -292,10 +304,10 @@ function searchTermsFor(intake: WorkoutIntake) {
 }
 
 function equipmentParam(intake: WorkoutIntake) {
-  const equipment = intake.equipment.map((item) => item.trim().toLowerCase().replace(/s$/, "")).filter(Boolean);
+  const equipment = [...new Set(intake.equipment.map(normalizeEquipmentToken).filter(Boolean))];
   if (!equipment.length) return undefined;
-  if (equipment.some((item) => /full gym|commercial gym|gym access|all equipment|any equipment|everything/.test(item))) return undefined;
-  if (equipment.includes("bodyweight") || equipment.includes("none") || equipment.includes("no equipment")) return "bodyweight";
+  if (equipment.some((item) => item === "full gym")) return undefined;
+  if (equipment.includes("bodyweight")) return "bodyweight";
   return equipment.join(",") || undefined;
 }
 
@@ -464,7 +476,9 @@ export async function gatherExerciseCandidates(intake: WorkoutIntake, rejectedEx
     ...terms.slice(0, 10).map((q) => searchExercises({ q, equipment, difficulty: levels, limit: 16 }).then((result) => add(result.data))),
   ]);
 
-  if (candidateMap.size < 30 && equipment) add((await searchExercises({ difficulty: levels, limit: 100 })).data);
+  // If the user gave specific equipment, do not widen to the whole library.
+  // "Only bands" must stay bands, not become dumbbells because the candidate pool was small.
+  if (candidateMap.size < 30 && !equipment) add((await searchExercises({ difficulty: levels, limit: 100 })).data);
 
   const rejected = new Set(rejectedExerciseIds);
   const seed = `${intake.goal ?? ""}|${intake.boxingFocus ?? ""}|${intake.targetMuscles.join(",")}|${intake.targetMovementPatterns.join(",")}|${intake.equipment.join(",")}|${new Date().toISOString().slice(0, 10)}`;
