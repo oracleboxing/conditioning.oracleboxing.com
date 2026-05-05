@@ -1,0 +1,87 @@
+import Link from "next/link";
+import { createAuthClient } from "@/lib/supabase/auth-server";
+import { getSavedWorkouts } from "@/lib/workouts/data";
+
+export const dynamic = "force-dynamic";
+
+function formatDate(value: string | null) {
+  if (!value) return "Draft";
+  return new Intl.DateTimeFormat("en", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
+}
+
+export default async function MyWorkoutsPage() {
+  const supabase = await createAuthClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { workouts, source, note } = await getSavedWorkouts(user?.id);
+
+  return (
+    <div className="space-y-8">
+      <section className="rounded-[2.5rem] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(0,122,255,0.25),transparent_36%),#0b111a] p-5 shadow-2xl shadow-black/40 sm:p-8">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-[#b8ff3d]">My Workouts</p>
+            <h1 className="mt-4 text-5xl font-black leading-none tracking-[-0.06em] sm:text-7xl">Your saved training lab.</h1>
+            <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-300">
+              Saved sessions, generated previews and member-specific conditioning plans live here. Open one to review the full exercise flow.
+            </p>
+          </div>
+          <Link href="/app/create" className="rounded-full bg-[#007aff] px-6 py-4 text-center text-sm font-black uppercase tracking-[0.18em] text-white shadow-2xl shadow-[#007aff]/25 transition hover:bg-[#2f96ff]">
+            Create workout
+          </Link>
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {workouts.map((workout) => (
+          <Link
+            key={workout.id}
+            href={`/workouts/${workout.id}`}
+            className="group flex min-h-72 flex-col rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 transition hover:border-[#007aff]/50 hover:bg-[#007aff]/10 sm:p-6"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-xs font-black uppercase tracking-wide text-zinc-300">
+                {workout.visibility}
+              </span>
+              <span className="text-xs font-semibold text-zinc-500">{formatDate(workout.createdAt)}</span>
+            </div>
+            <h2 className="mt-5 text-2xl font-black leading-tight tracking-tight text-white group-hover:text-[#f6faff]">{workout.title}</h2>
+            <p className="mt-3 line-clamp-4 text-sm leading-6 text-zinc-400">{workout.goal ?? "Saved Oracle Performance Lab session."}</p>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-zinc-300">
+                {workout.durationMinutes ? `${workout.durationMinutes} min` : "Flexible"}
+              </span>
+              <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-zinc-300">
+                {workout.difficulty ?? "Adaptive"}
+              </span>
+              {(workout.equipment.length ? workout.equipment : ["Bodyweight"]).slice(0, 3).map((item) => (
+                <span key={item} className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-zinc-300">
+                  {item}
+                </span>
+              ))}
+            </div>
+
+            <p className="mt-auto pt-6 text-sm font-black uppercase tracking-[0.16em] text-white">Open workout →</p>
+          </Link>
+        ))}
+      </section>
+
+      <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-zinc-500">Source</p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-white">
+              {source === "supabase" ? "Live saved workouts" : "Demo fallback"}
+            </h2>
+            {note ? <p className="mt-2 text-sm leading-6 text-zinc-400">{note}</p> : null}
+          </div>
+          <Link href="/app/community" className="rounded-full border border-white/15 px-5 py-3 text-center text-xs font-black uppercase tracking-wide text-white transition hover:bg-white/10">
+            Browse community
+          </Link>
+        </div>
+      </section>
+    </div>
+  );
+}

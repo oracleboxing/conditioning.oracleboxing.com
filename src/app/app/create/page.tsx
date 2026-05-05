@@ -164,7 +164,7 @@ export default function CreateWorkoutPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#07080a] px-4 py-6 text-white sm:px-6 sm:py-8">
+    <div className="text-white">
       <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/30 sm:p-7">
           <div className="flex items-center justify-between gap-4">
@@ -235,6 +235,6 @@ export default function CreateWorkoutPage() {
           )}
         </aside>
       </div>
-    </main>
+    </div>
   );
 }
