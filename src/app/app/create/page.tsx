@@ -47,11 +47,13 @@ function PromptBar({
   loading,
   onInput,
   onSubmit,
+  placeholder = "Describe the strength and conditioning session you have in mind",
 }: {
   input: string;
   loading: boolean;
   onInput: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  placeholder?: string;
 }) {
   return (
     <form onSubmit={onSubmit} className="w-full max-w-3xl rounded-full border border-zinc-200 bg-white px-3 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-colors focus-within:border-black">
@@ -59,7 +61,7 @@ function PromptBar({
         <input
           value={input}
           onChange={(event) => onInput(event.target.value)}
-          placeholder="Describe the strength and conditioning session you have in mind"
+          placeholder={placeholder}
           className="h-11 min-w-0 flex-1 bg-transparent px-3 text-sm text-black outline-none placeholder:text-zinc-400"
         />
         <button disabled={loading || !input.trim()} aria-label="Send" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40">
@@ -387,7 +389,7 @@ export default function CreateWorkoutPage() {
           </div>
 
           <div className="sticky bottom-5 z-10 mx-auto w-full max-w-3xl pb-2">
-            <PromptBar input={input} loading={loading} onInput={setInput} onSubmit={handleSubmit} />
+            <PromptBar input={input} loading={loading} onInput={setInput} onSubmit={handleSubmit} placeholder="" />
           </div>
         </section>
       )}
