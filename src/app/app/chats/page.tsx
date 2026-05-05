@@ -36,50 +36,50 @@ export default async function ChatsPage() {
   const { sessions, warning } = user ? await listChatSessions(supabase, user.id, 40) : { sessions: [], warning: undefined };
 
   return (
-    <main className="min-h-screen bg-[#07080a] px-4 py-6 text-white sm:px-6 sm:py-8">
-      <div className="mx-auto max-w-5xl">
-        <header className="flex flex-col gap-4 border-b border-white/10 pb-8 sm:flex-row sm:items-center sm:justify-between">
+    <div className="text-slate-950">
+      <div className="mx-auto max-w-none">
+        <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.28em] text-[#7db7ff]">Oracle Performance Lab</p>
-            <h1 className="mt-3 text-4xl font-black tracking-tight">Workout chat history</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-300">Resume a saved AI workout creator thread without starting from scratch.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#7db7ff]">Oracle Performance Lab</p>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight">Workout chat history</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">Resume a saved AI workout creator thread without starting from scratch.</p>
           </div>
           <div className="flex gap-2">
-            <Link href="/app/create" className="rounded-full bg-[#007aff] px-5 py-3 text-sm font-black uppercase tracking-wide text-white hover:bg-[#2f96ff]">
+            <Link href="/app/create" className="rounded-full bg-[#007aff] px-5 py-3 text-sm font-semibold uppercase tracking-wide text-white hover:bg-[#2f96ff]">
               New chat
             </Link>
-            <Link href="/app" className="rounded-full border border-white/15 px-5 py-3 text-sm font-black uppercase tracking-wide text-white hover:bg-white/10">
+            <Link href="/app" className="rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold uppercase tracking-wide text-slate-950 hover:bg-slate-100">
               Back
             </Link>
           </div>
         </header>
 
-        {warning && <p className="mt-6 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm text-amber-50">{warning}</p>}
+        {warning && <p className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{warning}</p>}
 
         <section className="mt-8 space-y-3">
           {sessions.length ? (
             sessions.map((session) => (
-              <Link key={session.id} href={`/app/create?sessionId=${session.id}`} className="block rounded-3xl border border-white/10 bg-white/[0.04] p-5 transition hover:border-[#007aff]/60 hover:bg-white/[0.07]">
+              <Link key={session.id} href={`/app/create?sessionId=${session.id}`} className="block rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-[#007aff]/60 hover:bg-slate-100">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-xl font-black text-white">{session.title || "Workout chat"}</p>
-                    <p className="mt-2 text-sm leading-6 text-zinc-300">{intakeLine(session.intake_summary)}</p>
+                    <p className="text-xl font-semibold text-slate-950">{session.title || "Workout chat"}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">{intakeLine(session.intake_summary)}</p>
                   </div>
                   <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-                    <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-xs font-black uppercase tracking-wide text-zinc-200">{session.status}</span>
-                    <span className="text-xs font-semibold text-zinc-500">{formatDate(session.updated_at ?? session.created_at)}</span>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700">{session.status}</span>
+                    <span className="text-xs font-semibold text-slate-500">{formatDate(session.updated_at ?? session.created_at)}</span>
                   </div>
                 </div>
               </Link>
             ))
           ) : (
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-7">
-              <h2 className="text-2xl font-black">No saved chats yet</h2>
-              <p className="mt-3 text-sm leading-6 text-zinc-300">Start a creator chat and it will appear here once the chat history SQL is applied.</p>
+            <div className="rounded-2xl border border-slate-200 bg-white p-7">
+              <h2 className="text-xl font-semibold">No saved chats yet</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-500">Start a creator chat and it will appear here once the chat history SQL is applied.</p>
             </div>
           )}
         </section>
       </div>
-    </main>
+    </div>
   );
 }

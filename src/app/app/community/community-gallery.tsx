@@ -58,43 +58,43 @@ function difficultyLabel(difficulty: WorkoutDifficulty) {
 
 function WorkoutCard({ workout }: { workout: CommunityWorkout }) {
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-[#0b111a] p-5 shadow-2xl shadow-black/20 transition hover:-translate-y-1 hover:border-[#007aff]/50 hover:bg-[#0f1724]">
+    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-[#007aff]/50 hover:bg-slate-50">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-[#b8ff3d]">{goalLabel(workout.goal)}</p>
-          <h2 className="mt-3 text-2xl font-black tracking-tight text-[#f6faff]">{workout.title}</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#007aff]">{goalLabel(workout.goal)}</p>
+          <h2 className="mt-3 text-xl font-semibold tracking-tight text-slate-950">{workout.title}</h2>
         </div>
-        <div className="rounded-2xl bg-[#101a28] px-3 py-2 text-right">
-          <p className="font-mono text-2xl font-black text-[#b8ff3d]">{workout.durationMinutes}</p>
-          <p className="text-[0.65rem] font-black uppercase tracking-[0.18em] text-[#7a8799]">min</p>
+        <div className="rounded-2xl bg-slate-50 px-3 py-2 text-right">
+          <p className="font-mono text-xl font-semibold text-[#007aff]">{workout.durationMinutes}</p>
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500">min</p>
         </div>
       </div>
 
-      <p className="mt-4 flex-1 text-sm leading-6 text-[#9aa7b8]">{workout.summary}</p>
+      <p className="mt-4 flex-1 text-sm leading-6 text-slate-600">{workout.summary}</p>
 
       <div className="mt-5 flex flex-wrap gap-2">
-        <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-bold text-[#f6faff]">
+        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-950">
           {difficultyLabel(workout.difficulty)}
         </span>
-        <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-bold text-[#f6faff]">
+        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-950">
           {workout.blockCount || 4} blocks
         </span>
-        <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-bold text-[#f6faff]">
+        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-950">
           {workout.savedCount} saves
         </span>
       </div>
 
-      <div className="mt-5 min-h-16 rounded-3xl border border-white/10 bg-[#05070a] p-3">
-        <p className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-[#7a8799]">Kit</p>
-        <p className="mt-2 text-sm font-semibold text-[#f6faff]">{workout.equipment.join(" + ")}</p>
+      <div className="mt-5 min-h-16 rounded-2xl border border-slate-200 bg-white p-3">
+        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500">Kit</p>
+        <p className="mt-2 text-sm font-semibold text-slate-950">{workout.equipment.join(" + ")}</p>
       </div>
 
-      <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-4">
+      <div className="mt-5 flex items-center justify-between border-t border-slate-200 pt-4">
         <div>
-          <p className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-[#7a8799]">Built by</p>
-          <p className="mt-1 text-sm font-bold text-[#f6faff]">{workout.builderName}</p>
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500">Built by</p>
+          <p className="mt-1 text-sm font-bold text-slate-950">{workout.builderName}</p>
         </div>
-        <button className="rounded-full bg-[#007aff] px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-white transition group-hover:bg-[#2f96ff]">
+        <button className="rounded-full bg-[#007aff] px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-white transition group-hover:bg-[#2f96ff]">
           View logic
         </button>
       </div>
@@ -115,11 +115,11 @@ function SelectFilter<T extends string>({
 }) {
   return (
     <label className="block">
-      <span className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-[#7a8799]">{label}</span>
+      <span className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value as T)}
-        className="mt-2 w-full rounded-2xl border border-white/10 bg-[#05070a] px-4 py-3 text-sm font-bold text-[#f6faff] outline-none transition focus:border-[#007aff]"
+        className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-950 outline-none transition focus:border-[#007aff]"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -177,15 +177,15 @@ export function CommunityGallery({ workouts, sourceNote }: { workouts: Community
 
   return (
     <div className="space-y-8">
-      <section className="rounded-[2rem] border border-white/10 bg-[#0b111a] p-4 shadow-2xl shadow-black/20 sm:p-5">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="grid gap-4 lg:grid-cols-[1.2fr_repeat(4,1fr)]">
           <label className="block">
-            <span className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-[#7a8799]">Search</span>
+            <span className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500">Search</span>
             <input
               value={filters.search}
               onChange={(event) => updateFilter("search", event.target.value)}
               placeholder="Search workouts, kit or creator"
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-[#05070a] px-4 py-3 text-sm font-bold text-[#f6faff] outline-none transition placeholder:text-[#526071] focus:border-[#007aff]"
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#007aff]"
             />
           </label>
 
@@ -194,11 +194,11 @@ export function CommunityGallery({ workouts, sourceNote }: { workouts: Community
           <SelectFilter label="Difficulty" value={filters.difficulty} options={difficulties} onChange={(value) => updateFilter("difficulty", value)} />
 
           <label className="block">
-            <span className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-[#7a8799]">Equipment</span>
+            <span className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500">Equipment</span>
             <select
               value={filters.equipment}
               onChange={(event) => updateFilter("equipment", event.target.value)}
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-[#05070a] px-4 py-3 text-sm font-bold text-[#f6faff] outline-none transition focus:border-[#007aff]"
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-950 outline-none transition focus:border-[#007aff]"
             >
               {equipmentOptions.map((option) => (
                 <option key={option || "all"} value={option}>
@@ -209,19 +209,19 @@ export function CommunityGallery({ workouts, sourceNote }: { workouts: Community
           </label>
         </div>
 
-        <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-semibold text-[#9aa7b8]">
-            Showing <span className="text-[#f6faff]">{filteredWorkouts.length}</span> of {workouts.length} shared workouts
-            {isPending ? <span className="ml-2 text-[#b8ff3d]">Filtering...</span> : null}
+        <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-semibold text-slate-600">
+            Showing <span className="text-slate-950">{filteredWorkouts.length}</span> of {workouts.length} shared workouts
+            {isPending ? <span className="ml-2 text-[#007aff]">Filtering...</span> : null}
           </p>
-          <button onClick={clearFilters} className="rounded-full border border-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-[#f6faff] transition hover:bg-white/10">
+          <button onClick={clearFilters} className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-slate-950 transition hover:bg-slate-100">
             Reset filters
           </button>
         </div>
       </section>
 
       {sourceNote ? (
-        <div className="rounded-3xl border border-[#b8ff3d]/20 bg-[#b8ff3d]/10 px-5 py-4 text-sm leading-6 text-[#d7ff91]">
+        <div className="rounded-2xl border border-[#007aff]/20 bg-[#007aff]/10 px-5 py-4 text-sm leading-6 text-[#0b5fc7]">
           {sourceNote}
         </div>
       ) : null}
@@ -233,13 +233,13 @@ export function CommunityGallery({ workouts, sourceNote }: { workouts: Community
           ))}
         </section>
       ) : (
-        <section className="rounded-[2rem] border border-white/10 bg-[#0b111a] px-6 py-16 text-center">
-          <p className="text-sm font-black uppercase tracking-[0.22em] text-[#b8ff3d]">No matching sessions</p>
-          <h2 className="mt-4 text-3xl font-black text-[#f6faff]">The gallery is not empty, your filters are just being dramatic.</h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-[#9aa7b8]">
+        <section className="rounded-2xl border border-slate-200 bg-white px-6 py-16 text-center">
+          <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#007aff]">No matching sessions</p>
+          <h2 className="mt-4 text-2xl font-semibold text-slate-950">The gallery is not empty, your filters are just being dramatic.</h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600">
             Loosen the kit, duration or goal filters and the member-built conditioning sessions will come back.
           </p>
-          <button onClick={clearFilters} className="mt-8 rounded-full bg-[#007aff] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-white transition hover:bg-[#2f96ff]">
+          <button onClick={clearFilters} className="mt-8 rounded-full bg-[#007aff] px-5 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-[#2f96ff]">
             Clear filters
           </button>
         </section>

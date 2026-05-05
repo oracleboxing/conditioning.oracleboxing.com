@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --background: #05070a;
-  --foreground: #f6faff;
-  color-scheme: dark;
+  --background: #ffffff;
+  --foreground: #111827;
+  color-scheme: light;
 }
 
 @theme inline {
@@ -35,14 +35,14 @@ select {
 input,
 textarea,
 select {
-  color: #f6faff;
-  background-color: #05070a;
+  color: #111827;
+  background-color: #ffffff;
 }
 
 input:-webkit-autofill,
 textarea:-webkit-autofill,
 select:-webkit-autofill {
-  -webkit-text-fill-color: #f6faff;
-  box-shadow: 0 0 0 1000px #05070a inset;
-  caret-color: #f6faff;
+  -webkit-text-fill-color: #111827;
+  box-shadow: 0 0 0 1000px #ffffff inset;
+  caret-color: #111827;
 }
