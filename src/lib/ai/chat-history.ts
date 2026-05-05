@@ -47,6 +47,13 @@ export function jsonFromIntake(intake: WorkoutIntake): Json {
     level: intake.level,
     injuriesOrConstraints: intake.injuriesOrConstraints,
     boxingFocus: intake.boxingFocus,
+    trainingEnvironment: intake.trainingEnvironment,
+    recentTrainingOrFatigue: intake.recentTrainingOrFatigue,
+    preferredIntensity: intake.preferredIntensity,
+    whatToAvoid: intake.whatToAvoid,
+    sessionBias: intake.sessionBias,
+    targetMuscles: intake.targetMuscles,
+    targetMovementPatterns: intake.targetMovementPatterns,
   };
 }
 

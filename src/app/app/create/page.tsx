@@ -377,16 +377,16 @@ function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId
                 )}
               </div>
             ))}
-            {loading && (
+            {loading && status ? (
               <div className="flex justify-start">
                 <div className="max-w-3xl text-sm font-medium leading-7 text-black">
                   <AnimatedThinking status={status} />
                 </div>
               </div>
-            )}
+            ) : null}
             {error && <p className="max-w-3xl rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
             {workout ? (
-              <div className="xl:hidden">
+              <div className="lg:hidden">
                 <WorkoutPreview workout={workout} persistence={persistence} warnings={warnings} />
               </div>
             ) : null}

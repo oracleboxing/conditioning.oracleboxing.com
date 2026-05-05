@@ -107,6 +107,7 @@ function heuristicExtract(message: string): Partial<WorkoutIntake> {
   const lower = message.toLowerCase();
   const minutes = lower.match(/(\d{2,3})\s*(min|mins|minutes|m)\b/)?.[1];
   const equipment = ["bodyweight", "dumbbell", "dumbbells", "kettlebell", "barbell", "band", "bands", "bench", "pull-up bar", "medicine ball"].filter((item) => lower.includes(item));
+  if (/full gym|commercial gym|gym access|all equipment|any equipment/.test(lower)) equipment.push("full gym");
   const level = lower.includes("beginner") ? "beginner" : lower.includes("advanced") ? "advanced" : lower.includes("intermediate") ? "intermediate" : undefined;
   const noInjuries = /no (injuries|pain|issues|constraints)/i.test(message);
   const nothingToAvoid = /nothing to avoid|avoid nothing|no (burpees|running|jumping|overhead|preferences|avoid)/i.test(message);
@@ -138,6 +139,10 @@ export function missingIntakeQuestions(intake: WorkoutIntake) {
   if (!intake.timeMinutes) missing.push("how long you have");
   if (!intake.equipment.length) missing.push("what equipment you can use");
   if (!intake.injuriesOrConstraints) missing.push("anything I should work around");
+
+  if (!intake.goal && missing.length < 3) {
+    return ["What are we training? Give me the target, time, kit, and anything to work around."];
+  }
 
   if (missing.length) {
     return [
@@ -221,9 +226,8 @@ function exerciseMatchesTarget(exercise: CompactExercise, target: TargetProfile)
   const wantedMuscles = normalizedSet(target.muscles);
   const wantedPatterns = normalizedSet(target.movementPatterns);
   const primaryMatch = exercise.muscles.primary.some((muscle) => wantedMuscles.has(muscle.trim().toLowerCase()));
-  const secondaryMatch = exercise.muscles.secondary.some((muscle) => wantedMuscles.has(muscle.trim().toLowerCase()));
   const patternMatch = exercise.movementPatterns.some((pattern) => wantedPatterns.has(pattern.trim().toLowerCase()));
-  return primaryMatch || patternMatch || (target.muscles.length === 1 && secondaryMatch);
+  return primaryMatch || patternMatch;
 }
 
 function searchConfigFor(intake: WorkoutIntake) {
@@ -288,8 +292,10 @@ function searchTermsFor(intake: WorkoutIntake) {
 }
 
 function equipmentParam(intake: WorkoutIntake) {
-  const equipment = intake.equipment.map((item) => item.replace(/s$/, ""));
-  if (equipment.includes("bodyweight") || equipment.includes("none")) return "bodyweight";
+  const equipment = intake.equipment.map((item) => item.trim().toLowerCase().replace(/s$/, "")).filter(Boolean);
+  if (!equipment.length) return undefined;
+  if (equipment.some((item) => /full gym|commercial gym|gym access|all equipment|any equipment|everything/.test(item))) return undefined;
+  if (equipment.includes("bodyweight") || equipment.includes("none") || equipment.includes("no equipment")) return "bodyweight";
   return equipment.join(",") || undefined;
 }
 
