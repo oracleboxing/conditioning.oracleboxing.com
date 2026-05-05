@@ -14,10 +14,17 @@ const nextActions = [
     primary: true,
   },
   {
+    href: "/app/chats",
+    eyebrow: "History",
+    title: "Resume chat history",
+    copy: "Pick up the exact AI conversation that created a session instead of starting from scratch every time.",
+    cta: "Open chats",
+  },
+  {
     href: "/app/workouts",
     eyebrow: "Library",
     title: "Review saved workouts",
-    copy: "Pick up previous sessions, check duration and kit, then open the full plan when you are ready to train.",
+    copy: "Check previous sessions, duration and kit, then open the full plan when you are ready to train.",
     cta: "My workouts",
   },
   {
@@ -52,11 +59,14 @@ export default async function AppHome() {
               Build the engine behind the boxing.
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-300 sm:text-lg">
-              Create focused S&C sessions, keep your saved workouts in one place, and pull ideas from the community without turning training into spreadsheet cosplay.
+              Create focused S&amp;C sessions, save the full workout, resume the AI chat that made it, and pull ideas from the community without turning training into spreadsheet cosplay.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link href="/app/create" className="rounded-full bg-[#007aff] px-6 py-4 text-center text-sm font-black uppercase tracking-[0.18em] text-white shadow-2xl shadow-[#007aff]/25 transition hover:bg-[#2f96ff]">
                 Create workout
+              </Link>
+              <Link href="/app/chats" className="rounded-full border border-white/15 bg-white/[0.04] px-6 py-4 text-center text-sm font-black uppercase tracking-[0.18em] text-white transition hover:bg-white/10">
+                Chat history
               </Link>
               <Link href="/app/workouts" className="rounded-full border border-white/15 bg-white/[0.04] px-6 py-4 text-center text-sm font-black uppercase tracking-[0.18em] text-white transition hover:bg-white/10">
                 My workouts
@@ -84,7 +94,7 @@ export default async function AppHome() {
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
+      <section className="grid gap-4 lg:grid-cols-4">
         {nextActions.map((action) => (
           <Link
             key={action.href}
