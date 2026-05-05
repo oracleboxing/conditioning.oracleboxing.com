@@ -26,6 +26,12 @@ export default async function AppHome() {
             >
               Create workout
             </a>
+            <a
+              href="/app/chats"
+              className="rounded-full border border-white/15 px-5 py-3 text-center text-sm font-bold uppercase tracking-wide text-white transition hover:bg-white/10"
+            >
+              Chat history
+            </a>
             <form action={signOut}>
               <button className="rounded-full border border-white/15 px-5 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-white/10">
                 Sign out

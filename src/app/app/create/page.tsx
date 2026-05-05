@@ -1,28 +1,39 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { GeneratedWorkout, WorkoutChatMessage, WorkoutIntake, WorkoutPersistence } from "@/lib/ai/workout-types";
 
 type ApiResponse =
   | {
       type: "question";
+      sessionId?: string | null;
       message: string;
       questions: string[];
       intake: WorkoutIntake;
+      chatWarnings?: string[];
     }
   | {
       type: "workout";
+      sessionId?: string | null;
       message: string;
       intake: WorkoutIntake;
       workout: GeneratedWorkout;
       warnings: string[];
+      chatWarnings?: string[];
       persistence: WorkoutPersistence;
     }
   | {
       error: string;
       message: string;
     };
+
+type LoadChatResponse = {
+  sessionId: string;
+  session: { intake_summary?: WorkoutIntake | null };
+  messages: Array<WorkoutChatMessage & { id?: string; created_at?: string | null }>;
+  warning?: string;
+};
 
 const STARTER_MESSAGE: WorkoutChatMessage = {
   role: "assistant",
@@ -101,6 +112,7 @@ function WorkoutPreview({ workout, persistence, warnings }: { workout: Generated
 }
 
 export default function CreateWorkoutPage() {
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<WorkoutChatMessage[]>([STARTER_MESSAGE]);
   const [input, setInput] = useState("");
   const [intake, setIntake] = useState<WorkoutIntake | null>(null);
@@ -109,6 +121,33 @@ export default function CreateWorkoutPage() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("sessionId");
+    if (!id) return;
+
+    let cancelled = false;
+    fetch(`/api/chat/workout?sessionId=${encodeURIComponent(id)}`)
+      .then(async (response) => {
+        const payload = (await response.json()) as LoadChatResponse | { message?: string };
+        if (!response.ok) throw new Error("message" in payload && payload.message ? payload.message : "Could not load chat history.");
+        return payload as LoadChatResponse;
+      })
+      .then((payload) => {
+        if (cancelled) return;
+        setSessionId(payload.sessionId);
+        setMessages(payload.messages.length ? payload.messages.map((message) => ({ role: message.role, content: message.content })) : [STARTER_MESSAGE]);
+        setIntake(payload.session.intake_summary ?? null);
+        if (payload.warning) setError(payload.warning);
+      })
+      .catch((caught) => {
+        if (!cancelled) setError(caught instanceof Error ? caught.message : "Could not load chat history.");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const intakeSummary = useMemo(() => {
     if (!intake) return [];
@@ -138,7 +177,7 @@ export default function CreateWorkoutPage() {
       const response = await fetch("/api/chat/workout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: nextMessages, intake }),
+        body: JSON.stringify({ sessionId, messages: nextMessages, intake }),
       });
       const payload = (await response.json()) as ApiResponse;
 
@@ -146,13 +185,14 @@ export default function CreateWorkoutPage() {
         throw new Error(payload.message ?? "Workout creator failed.");
       }
 
+      setSessionId(payload.sessionId ?? sessionId);
       setIntake(payload.intake);
       setMessages([...nextMessages, { role: "assistant", content: payload.message }]);
 
       if (payload.type === "workout") {
         setWorkout(payload.workout);
         setPersistence(payload.persistence);
-        setWarnings(payload.warnings ?? []);
+        setWarnings([...(payload.warnings ?? []), ...(payload.chatWarnings ?? [])]);
       }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Workout creator failed.";
@@ -175,9 +215,14 @@ export default function CreateWorkoutPage() {
                 A chat builder for one boxing-specific S&C session. No weekly-plan waffle, just today&apos;s work.
               </p>
             </div>
-            <Link href="/app" className="hidden rounded-full border border-white/15 px-4 py-2 text-xs font-black uppercase tracking-wide text-white hover:bg-white/10 sm:block">
-              Back
-            </Link>
+            <div className="hidden gap-2 sm:flex">
+              <Link href="/app/chats" className="rounded-full border border-white/15 px-4 py-2 text-xs font-black uppercase tracking-wide text-white hover:bg-white/10">
+                History
+              </Link>
+              <Link href="/app" className="rounded-full border border-white/15 px-4 py-2 text-xs font-black uppercase tracking-wide text-white hover:bg-white/10">
+                Back
+              </Link>
+            </div>
           </div>
 
           <div className="mt-6 h-[48vh] min-h-[360px] space-y-3 overflow-y-auto rounded-3xl border border-white/10 bg-black/30 p-4">
@@ -207,6 +252,11 @@ export default function CreateWorkoutPage() {
               Send
             </button>
           </form>
+          {sessionId && (
+            <p className="mt-3 text-xs font-semibold text-zinc-500">
+              Saved chat. Resume link: <Link className="text-[#7db7ff] hover:underline" href={`/app/create?sessionId=${sessionId}`}>open this session</Link>
+            </p>
+          )}
           {error && <p className="mt-3 rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</p>}
         </section>
 

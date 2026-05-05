@@ -102,6 +102,27 @@ export type WorkoutItemRow = {
   created_at: string | null;
 };
 
+export type WorkoutChatSessionRow = {
+  id: string;
+  user_id: string;
+  workout_id: string | null;
+  title: string | null;
+  status: "active" | "completed" | "archived";
+  intake_summary: Json | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type WorkoutChatMessageRow = {
+  id: string;
+  session_id: string;
+  user_id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  metadata: Json | null;
+  created_at: string | null;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -129,6 +150,16 @@ export type Database = {
         Row: WorkoutItemRow;
         Insert: Partial<WorkoutItemRow> & Pick<WorkoutItemRow, "workout_id" | "order_index" | "block_type">;
         Update: Partial<WorkoutItemRow>;
+      };
+      workout_chat_sessions: {
+        Row: WorkoutChatSessionRow;
+        Insert: Partial<WorkoutChatSessionRow> & Pick<WorkoutChatSessionRow, "user_id">;
+        Update: Partial<WorkoutChatSessionRow>;
+      };
+      workout_chat_messages: {
+        Row: WorkoutChatMessageRow;
+        Insert: Partial<WorkoutChatMessageRow> & Pick<WorkoutChatMessageRow, "session_id" | "user_id" | "role" | "content">;
+        Update: Partial<WorkoutChatMessageRow>;
       };
     };
     Views: Record<string, never>;
