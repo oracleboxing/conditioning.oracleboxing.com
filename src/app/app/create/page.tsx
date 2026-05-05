@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import type { GeneratedWorkout, WorkoutChatMessage, WorkoutIntake, WorkoutPersistence } from "@/lib/ai/workout-types";
 
 type StreamEvent =
@@ -23,12 +23,6 @@ type LoadChatResponse = {
   session: { intake_summary?: WorkoutIntake | null };
   messages: Array<WorkoutChatMessage & { id?: string; created_at?: string | null }>;
   warning?: string;
-};
-
-const STARTER_MESSAGE: WorkoutChatMessage = {
-  role: "assistant",
-  content:
-    "Tell me what you want from today’s session. I can work with messy notes, goal, kit, time, level, injuries, boxing focus, whatever you’ve got.",
 };
 
 function IntakePill({ label, value }: { label: string; value: string }) {
@@ -177,7 +171,8 @@ function WorkoutPreview({
 
 export default function CreateWorkoutPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<WorkoutChatMessage[]>([STARTER_MESSAGE]);
+  const [messages, setMessages] = useState<WorkoutChatMessage[]>([]);
+  const [userName, setUserName] = useState("there");
   const [input, setInput] = useState("");
   const [intake, setIntake] = useState<WorkoutIntake | null>(null);
   const [workout, setWorkout] = useState<GeneratedWorkout | null>(null);
@@ -194,6 +189,22 @@ export default function CreateWorkoutPage() {
   }, [messages, loading, status]);
 
   useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      if (cancelled) return;
+      const email = data.user?.email ?? "";
+      const metaName = data.user?.user_metadata?.name || data.user?.user_metadata?.full_name;
+      const fallback = email ? email.split("@")[0].split(/[._-]/)[0] : "there";
+      const name = typeof metaName === "string" && metaName.trim() ? metaName.trim().split(" ")[0] : fallback;
+      setUserName(name ? name.charAt(0).toUpperCase() + name.slice(1) : "there");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("sessionId");
     if (!id) return;
 
@@ -207,7 +218,7 @@ export default function CreateWorkoutPage() {
       .then((payload) => {
         if (cancelled) return;
         setSessionId(payload.sessionId);
-        setMessages(payload.messages.length ? payload.messages.map((message) => ({ role: message.role, content: message.content })) : [STARTER_MESSAGE]);
+        setMessages(payload.messages.length ? payload.messages.map((message) => ({ role: message.role, content: message.content })) : []);
         setIntake(payload.session.intake_summary ?? null);
         if (payload.warning) setError(payload.warning);
       })
@@ -389,30 +400,45 @@ export default function CreateWorkoutPage() {
   }
 
   return (
-    <div className="text-slate-950">
-      <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[minmax(0,1fr)_440px]">
-        <section className="flex min-h-[76vh] flex-col rounded-xl border border-slate-200 bg-[#0b0f17] p-4 shadow-sm sm:p-5">
-          <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-1 pb-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#7db7ff]">Oracle Performance Lab</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Workout creator</h1>
-            </div>
-            <div className="flex gap-2">
-              <Link href="/app/chats" className="rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-950 hover:bg-slate-100">
-                History
-              </Link>
-              <Link href="/app" className="hidden rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-950 hover:bg-slate-100 sm:block">
-                Back
-              </Link>
-            </div>
-          </div>
+    <div className="min-h-[calc(100vh-7rem)] text-slate-950">
+      {!messages.length && !workout ? (
+        <section className="flex min-h-[70vh] flex-col items-center justify-center px-4">
+          <h1 className="text-center text-xl font-medium tracking-tight text-slate-950 sm:text-2xl">
+            Hey, {userName}. What would you like to train?
+          </h1>
 
-          <div ref={scrollRef} className="mt-4 flex-1 space-y-5 overflow-y-auto rounded-xl bg-slate-50 p-3 sm:p-5">
+          <form onSubmit={handleSubmit} className="mt-10 w-full max-w-3xl">
+            <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-3 shadow-[0_8px_30px_rgba(15,23,42,0.08)]">
+              <button type="button" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-2xl font-light text-slate-700 hover:bg-slate-100" aria-label="Add details">
+                +
+              </button>
+              <input
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder="Describe the strength and conditioning session you have in mind"
+                className="min-w-0 flex-1 bg-transparent text-sm text-slate-950 outline-none placeholder:text-slate-400"
+              />
+              <button type="button" className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 sm:flex" aria-label="Voice input">
+                ◦
+              </button>
+              <button
+                disabled={loading || !input.trim()}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Send"
+              >
+                ↑
+              </button>
+            </div>
+          </form>
+        </section>
+      ) : (
+        <section className="mx-auto flex min-h-[calc(100vh-7rem)] max-w-5xl flex-col">
+          <div ref={scrollRef} className="flex-1 space-y-6 overflow-y-auto px-2 py-6 sm:px-6">
             {messages.map((message, index) => (
               <div key={`${message.role}-${index}`} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`max-w-[88%] whitespace-pre-wrap rounded-[1.35rem] px-4 py-3 text-sm leading-6 shadow-lg ${
-                    message.role === "user" ? "bg-[#007aff] text-slate-950" : "border border-slate-200 bg-white/[0.07] text-slate-900"
+                  className={`max-w-[82%] whitespace-pre-wrap rounded-3xl px-4 py-3 text-sm leading-6 ${
+                    message.role === "user" ? "bg-slate-100 text-slate-950" : "bg-white text-slate-950"
                   }`}
                 >
                   {message.content}
@@ -421,80 +447,58 @@ export default function CreateWorkoutPage() {
             ))}
             {loading && (
               <div className="flex justify-start">
-                <div className="rounded-[1.35rem] border border-slate-200 bg-white/[0.07] px-4 py-3 text-sm text-slate-600">
-                  <span className="mr-2 inline-flex h-2 w-2 animate-pulse rounded-full bg-[#7db7ff]" />
+                <div className="rounded-3xl bg-white px-4 py-3 text-sm text-slate-500">
                   {status ?? "Typing..."}
                 </div>
               </div>
             )}
-          </div>
-
-          <form onSubmit={handleSubmit} className="mt-4 rounded-[1.75rem] border border-slate-200 bg-black/35 p-2 shadow-inner shadow-black/40">
-            <div className="flex gap-2">
-              <textarea
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    event.currentTarget.form?.requestSubmit();
-                  }
-                }}
-                rows={1}
-                placeholder="Example: 35 min, dumbbells, intermediate, gas tank, no injuries"
-                className="min-h-12 min-w-0 flex-1 resize-none bg-transparent px-4 py-3 text-sm text-slate-950 outline-none placeholder:text-slate-500"
-              />
-              <button
-                disabled={loading || !input.trim()}
-                className="self-end rounded-full bg-white px-5 py-3 text-sm font-semibold uppercase tracking-wide text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Send
-              </button>
-            </div>
-          </form>
-
-          {sessionId && (
-            <p className="mt-3 text-xs font-semibold text-slate-500">
-              Saved chat. Resume link: <Link className="text-[#7db7ff] hover:underline" href={`/app/create?sessionId=${sessionId}`}>open this session</Link>
-            </p>
-          )}
-          {error && <p className="mt-3 rounded-lg border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</p>}
-        </section>
-
-        <aside className="space-y-5">
-          {intakeSummary.length > 0 && (
-            <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-7">
-              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Current brief</p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+            {error && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+            {intakeSummary.length > 0 && (
+              <div className="grid gap-2 sm:grid-cols-3">
                 {intakeSummary.map(([label, value]) => (
                   <IntakePill key={label} label={label} value={value} />
                 ))}
               </div>
-            </section>
-          )}
+            )}
+            {workout ? (
+              <WorkoutPreview
+                workout={workout}
+                persistence={persistence}
+                warnings={warnings}
+                rejectedExerciseIds={rejectedExerciseIds}
+                busy={loading}
+                onReject={toggleRejected}
+                onSwapRejected={handleSwapRejected}
+                onSave={handleSave}
+              />
+            ) : null}
+          </div>
 
-          {workout ? (
-            <WorkoutPreview
-              workout={workout}
-              persistence={persistence}
-              warnings={warnings}
-              rejectedExerciseIds={rejectedExerciseIds}
-              busy={loading}
-              onReject={toggleRejected}
-              onSwapRejected={handleSwapRejected}
-              onSave={handleSave}
-            />
-          ) : (
-            <section className="rounded-xl border border-slate-200 bg-white p-7">
-              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">How it works</p>
-              <h2 className="mt-3 text-2xl font-semibold">Chat first, save later</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
-                The AI reads the goal, searches uploaded Supabase free-exercise-db rows, streams its assumptions, then gives you a draft. Swap weak exercises before it saves to workouts.
-              </p>
-            </section>
-          )}
-        </aside>
-      </div>
+          <form onSubmit={handleSubmit} className="sticky bottom-4 mx-auto w-full max-w-3xl px-2 sm:px-0">
+            <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-3 shadow-[0_8px_30px_rgba(15,23,42,0.08)]">
+              <button type="button" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-2xl font-light text-slate-700 hover:bg-slate-100" aria-label="Add details">
+                +
+              </button>
+              <input
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder="Describe the strength and conditioning session you have in mind"
+                className="min-w-0 flex-1 bg-transparent text-sm text-slate-950 outline-none placeholder:text-slate-400"
+              />
+              <button type="button" className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 sm:flex" aria-label="Voice input">
+                ◦
+              </button>
+              <button
+                disabled={loading || !input.trim()}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Send"
+              >
+                ↑
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
     </div>
   );
 }
