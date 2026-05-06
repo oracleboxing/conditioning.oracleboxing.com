@@ -361,7 +361,7 @@ function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId
           </div>
         </section>
       ) : (
-        <section className={`grid min-h-[calc(100vh-5rem)] w-full gap-5 px-3 sm:px-4 lg:pl-4 lg:pr-2 ${workout ? "md:grid-cols-[minmax(280px,0.85fr)_minmax(340px,1fr)] xl:grid-cols-[minmax(360px,0.75fr)_minmax(520px,1fr)] 2xl:grid-cols-[minmax(440px,0.72fr)_minmax(720px,1fr)]" : "mx-auto max-w-4xl grid-cols-1"}`}>
+        <section className={`grid min-h-[calc(100vh-5rem)] w-full gap-5 px-3 sm:px-4 lg:pl-4 lg:pr-2 ${workout ? "sm:grid-cols-[minmax(220px,0.78fr)_minmax(300px,1fr)] md:grid-cols-[minmax(280px,0.85fr)_minmax(340px,1fr)] xl:grid-cols-[minmax(360px,0.75fr)_minmax(520px,1fr)] 2xl:grid-cols-[minmax(440px,0.72fr)_minmax(720px,1fr)]" : "mx-auto max-w-4xl grid-cols-1"}`}>
           <div className="flex min-h-[calc(100vh-5rem)] min-w-0 flex-col">
             <div ref={scrollRef} className="flex-1 space-y-6 overflow-y-auto pb-10 pt-8 sm:px-4 lg:px-2 xl:px-4">
             {messages.map((message, index) => (
@@ -386,7 +386,7 @@ function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId
             ) : null}
             {error && <p className="max-w-3xl rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
             {workout ? (
-              <div className="md:hidden">
+              <div className="sm:hidden">
                 <WorkoutPreview workout={workout} persistence={persistence} warnings={warnings} />
               </div>
             ) : null}
@@ -399,7 +399,7 @@ function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId
           </div>
 
           {workout ? (
-            <aside className="hidden max-h-[calc(100vh-5rem)] overflow-y-auto py-4 pr-0 md:block">
+            <aside className="hidden max-h-[calc(100vh-5rem)] overflow-y-auto py-4 pr-0 sm:block">
               <div className="ml-auto w-full max-w-none">
                 <WorkoutPreview workout={workout} persistence={persistence} warnings={warnings} />
               </div>

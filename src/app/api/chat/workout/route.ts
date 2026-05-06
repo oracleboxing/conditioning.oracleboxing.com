@@ -112,6 +112,17 @@ function latestUserMessage(messages: WorkoutChatMessage[]) {
   return [...messages].reverse().find((message) => message.role === "user") ?? null;
 }
 
+
+function workoutIdFromMessageMetadata(messages: Awaited<ReturnType<typeof loadChatSession>>["messages"]) {
+  for (const message of [...messages].reverse()) {
+    const metadata = message.metadata;
+    if (!metadata || Array.isArray(metadata) || typeof metadata !== "object") continue;
+    const workoutId = (metadata as { workoutId?: unknown }).workoutId;
+    if (typeof workoutId === "string" && /^[0-9a-f-]{32,36}$/i.test(workoutId)) return workoutId;
+  }
+  return null;
+}
+
 async function authenticatedSupabase() {
   const supabase = (await createAuthClient()) as AuthSupabase;
   const {
@@ -168,8 +179,9 @@ export async function GET(request: NextRequest) {
       return Response.json({ error: "chat_session_not_found", message: warning ?? "Chat session was not found." }, { status: 404 });
     }
 
-    const workout = session.workout_id ? await loadGeneratedWorkoutForUser(user.id, session.workout_id) : null;
-    return Response.json({ sessionId: session.id, session, messages, workout, warning });
+    const resolvedWorkoutId = session.workout_id ?? workoutIdFromMessageMetadata(messages);
+    const workout = resolvedWorkoutId ? await loadGeneratedWorkoutForUser(user.id, resolvedWorkoutId) : null;
+    return Response.json({ sessionId: session.id, session: { ...session, workout_id: resolvedWorkoutId }, messages, workout, warning });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Workout chat load failed.";
     return Response.json({ error: "workout_chat_load_failed", message }, { status: 500 });
