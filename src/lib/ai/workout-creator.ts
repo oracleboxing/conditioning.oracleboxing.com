@@ -490,7 +490,10 @@ function selectNovelCandidates(scored: Array<ReturnType<typeof scoreExerciseCand
 
 export async function gatherExerciseCandidates(intake: WorkoutIntake, rejectedExerciseIds: string[] = []): Promise<ExerciseCandidatePack> {
   const equipment = equipmentParam(intake);
-  const levels = intake.level && intake.level !== "unknown" ? intake.level : undefined;
+  // "Intermediate" is the default assumption for programming, not a hard retrieval constraint.
+  // The free-exercise-db difficulty labels are sparse/inconsistent, so filtering by assumed intermediate
+  // can wipe out valid equipment pools like resistance bands.
+  const levels = intake.level && intake.level !== "unknown" && intake.level !== "intermediate" ? intake.level : undefined;
   const candidateMap = new Map<string, CompactExercise>();
   const add = (exercises: CompactExercise[]) => exercises.forEach((exercise) => candidateMap.set(exercise.id, exercise));
 
