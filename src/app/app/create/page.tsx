@@ -25,20 +25,41 @@ type LoadChatResponse = {
 };
 
 
+const THINKING_MESSAGES = ["Reading your request", "Checking the workout", "Getting ready to update it"];
+const UPDATE_MESSAGES = ["Updating workout", "Finding better exercise matches", "Rebalancing the session", "Saving changes"];
+const SEARCH_MESSAGES = ["Searching exercise library", "Checking exercises with images", "Finding cleaner matches"];
+const BUILD_MESSAGES = ["Building workout", "Matching exercises", "Putting the session together"];
+
 function AnimatedThinking({ status }: { status: string | null }) {
   const [dotCount, setDotCount] = useState(1);
+  const [messageIndex, setMessageIndex] = useState(0);
 
   useEffect(() => {
-    const interval = window.setInterval(() => {
+    const dotInterval = window.setInterval(() => {
       setDotCount((current) => (current >= 3 ? 1 : current + 1));
     }, 360);
+    const messageInterval = window.setInterval(() => {
+      setMessageIndex((current) => current + 1);
+    }, 1800);
 
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearInterval(dotInterval);
+      window.clearInterval(messageInterval);
+    };
   }, []);
 
-  if (status && status !== "Thinking...") return <>{status}</>;
+  const baseStatus = (status ?? "Thinking").replace(/\.+$/, "");
+  const lowerStatus = baseStatus.toLowerCase();
+  const messages = lowerStatus.includes("updat") || lowerStatus.includes("patch")
+    ? UPDATE_MESSAGES
+    : lowerStatus.includes("search") || lowerStatus.includes("exercise") || lowerStatus.includes("swap")
+      ? SEARCH_MESSAGES
+      : lowerStatus.includes("build")
+        ? BUILD_MESSAGES
+        : THINKING_MESSAGES;
+  const message = messages[messageIndex % messages.length] ?? baseStatus;
 
-  return <>Thinking{".".repeat(dotCount)}</>;
+  return <>{message}{".".repeat(dotCount)}</>;
 }
 
 function PromptBar({
@@ -111,18 +132,13 @@ function ExerciseCard({
 
 function WorkoutPreview({
   workout,
-  persistence,
-  warnings,
 }: {
   workout: GeneratedWorkout;
-  persistence: WorkoutPersistence | null;
-  warnings: string[];
 }) {
   return (
     <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-7">
       <div>
         <h2 className="text-3xl font-semibold tracking-tight text-black">{workout.title}</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">{workout.summary}</p>
       </div>
 
       <div className="mt-7 space-y-5">
@@ -137,14 +153,6 @@ function WorkoutPreview({
           </div>
         ))}
       </div>
-
-      {(workout.safetyNotes.length > 0 || warnings.length > 0 || persistence?.reason) && (
-        <div className="mt-6 text-sm leading-6 text-zinc-600">
-          {[...workout.safetyNotes, ...warnings, persistence?.reason].filter(Boolean).map((note) => (
-            <p key={note}>• {note}</p>
-          ))}
-        </div>
-      )}
 
     </section>
   );
@@ -306,7 +314,7 @@ function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId
           setPersistence(event.persistence ?? null);
           setWarnings(event.warnings);
           setRejectedExerciseIds([]);
-          setStatus(event.persistence?.status === "saved" ? "Saved." : "Updated.");
+          setStatus(event.persistence?.status === "saved" ? "Saved" : "Updated");
           if (!assistantText) appendAssistant(event.persistence?.status === "saved" ? "Done. I saved the workout. Send me any changes you want." : "I’ve updated the workout.");
         }
         if (event.type === "error") throw new Error(event.message);
@@ -395,7 +403,7 @@ function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId
             {error && <p className="max-w-3xl rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
             {workout ? (
               <div className="sm:hidden">
-                <WorkoutPreview workout={workout} persistence={persistence} warnings={warnings} />
+                <WorkoutPreview workout={workout} />
               </div>
             ) : null}
             </div>
@@ -409,7 +417,7 @@ function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId
           {workout ? (
             <aside className="hidden max-h-[calc(100vh-5rem)] overflow-y-auto py-4 pr-0 sm:block">
               <div className="ml-auto w-full max-w-none">
-                <WorkoutPreview workout={workout} persistence={persistence} warnings={warnings} />
+                <WorkoutPreview workout={workout} />
               </div>
             </aside>
           ) : null}

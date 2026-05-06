@@ -35,28 +35,28 @@ function detailCopy(item: WorkoutItem) {
   return { firstInstructions, cues };
 }
 
-function JoinedExerciseImages({ item }: { item: WorkoutItem }) {
+function ExerciseImage({ item }: { item: WorkoutItem }) {
   const images = item.exercise.imageUrls.length ? item.exercise.imageUrls.slice(0, 2) : item.exercise.imageUrl ? [item.exercise.imageUrl] : [];
 
   if (!images.length) {
     return (
-      <div className="flex h-28 w-56 shrink-0 items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 text-center text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">
+      <div className="flex h-56 items-center justify-center rounded-t-2xl border border-b-0 border-dashed border-zinc-300 bg-zinc-50 text-center text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">
         Exercise image
       </div>
     );
   }
 
   return (
-    <div className="flex h-28 w-56 shrink-0 overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-100 sm:h-32 sm:w-64">
-      {images.map((url, imageIndex) => (
+    <div className="flex overflow-hidden rounded-t-2xl border border-b-0 border-zinc-200 bg-zinc-100">
+      {images.map((image, imageIndex) => (
         <Image
-          key={url}
-          src={url}
+          key={image}
+          src={image}
           alt={`${item.exercise.name} image ${imageIndex + 1}`}
-          width={220}
-          height={220}
+          width={720}
+          height={540}
           unoptimized
-          className={`h-full min-w-0 flex-1 object-cover ${images.length > 1 && imageIndex > 0 ? "border-l border-zinc-200" : ""}`}
+          className={`h-56 min-w-0 flex-1 object-cover sm:h-64 lg:h-72 ${images.length > 1 && imageIndex > 0 ? "border-l border-zinc-200" : ""}`}
         />
       ))}
     </div>
@@ -64,61 +64,26 @@ function JoinedExerciseImages({ item }: { item: WorkoutItem }) {
 }
 
 function ExerciseCard({ item }: { item: WorkoutItem }) {
-  const { firstInstructions, cues } = detailCopy(item);
+  const { firstInstructions } = detailCopy(item);
+  const howTo = firstInstructions.length ? firstInstructions : item.coachingNote ? [item.coachingNote] : [];
 
   return (
-    <article className="flex flex-col gap-5 border-t border-zinc-100 py-6 first:border-t-0 sm:flex-row">
-      <JoinedExerciseImages item={item} />
-
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">Step {item.orderIndex}</p>
-            <h3 className="mt-2 text-xl font-semibold tracking-tight text-black">{item.exercise.name}</h3>
-            <p className="mt-2 text-sm font-medium leading-6 text-zinc-600">{prescription(item)}</p>
-          </div>
-          {item.exercise.category ? (
-            <span className="w-fit rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
-              {item.exercise.category}
-            </span>
-          ) : null}
-        </div>
-
-        {item.coachingNote ? <p className="mt-4 text-sm leading-6 text-zinc-700">{item.coachingNote}</p> : null}
-
-        {firstInstructions.length ? (
-          <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">How to do it</p>
-            <ol className="mt-3 space-y-2 text-sm leading-6 text-zinc-600">
-              {firstInstructions.map((instruction, index) => (
-                <li key={`${item.id}-instruction-${index}`} className="flex gap-3">
-                  <span className="mt-0.5 text-xs font-semibold text-zinc-400">{index + 1}</span>
-                  <span>{instruction}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
-        ) : null}
-
-        {cues.length ? (
-          <div className="mt-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Cues</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {cues.map((cue) => (
-                <span key={cue} className="rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-medium leading-5 text-zinc-600">
-                  {cue}
-                </span>
+    <article className="border-t border-zinc-100 py-6 first:border-t-0">
+      <ExerciseImage item={item} />
+      <div className="grid gap-4 border border-zinc-200 bg-white p-4 sm:grid-cols-[1fr_190px] sm:p-5">
+        <div className="min-w-0">
+          <h3 className="text-lg font-semibold tracking-tight text-black sm:text-xl">{item.exercise.name}</h3>
+          {howTo.length ? (
+            <div className="mt-2 space-y-1.5 text-sm leading-6 text-zinc-600">
+              {howTo.map((instruction, index) => (
+                <p key={`${item.id}-how-${index}`}>{instruction}</p>
               ))}
             </div>
-          </div>
-        ) : null}
-
-        {item.boxingRelevance ? (
-          <p className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm leading-6 text-zinc-700">
-            <span className="font-semibold text-black">Boxing relevance: </span>
-            {item.boxingRelevance}
-          </p>
-        ) : null}
+          ) : null}
+        </div>
+        <p className="text-left text-base font-semibold leading-6 text-black sm:text-right sm:text-lg">
+          {prescription(item)}
+        </p>
       </div>
     </article>
   );

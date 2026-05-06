@@ -267,7 +267,7 @@ export async function POST(request: NextRequest) {
       }
       if (!currentWorkout) throw new Error("I couldn't find the workout to edit.");
 
-      send({ type: "status", message: "Creating workout patch..." });
+      send({ type: "status", message: "Updating workout" });
       const candidates = await gatherExerciseCandidates(intake, rejectedExerciseIds);
       const edited = await editWorkoutWithInstruction(intake, currentWorkout, candidates, userMessage?.content ?? body.instruction ?? "Update the workout.");
       send({ type: "debug", label: "workout_edit_patch", data: edited.patch });
@@ -297,7 +297,7 @@ export async function POST(request: NextRequest) {
     if (mode === "swap") {      if (!body.workout || !body.intake) throw new Error("Generate a draft before swapping exercises.");
       const intake = applyWorkoutAssumptions(body.intake as WorkoutIntake);
       const candidates = await gatherExerciseCandidates(intake, rejectedExerciseIds);
-      send({ type: "status", message: "Searching Supabase for cleaner swaps..." });
+      send({ type: "status", message: "Finding cleaner exercise swaps" });
       const swapped = await swapWorkoutExercise(intake, body.workout, candidates, rejectedExerciseIds, body.instruction ?? "Swap rejected exercises.");
       const validated = await validateWorkoutExercises(swapped, candidates);
       send({ type: "workout", workout: validated.workout, warnings: validated.warnings });
@@ -327,7 +327,7 @@ export async function POST(request: NextRequest) {
 
     const intake = applyWorkoutAssumptions(extracted);
     send({ type: "intake", intake });
-    send({ type: "status", message: "Searching uploaded exercise library..." });
+    send({ type: "status", message: "Searching exercise library" });
     const candidates = await gatherExerciseCandidates(intake, rejectedExerciseIds);
     if (!candidates.length) throw new Error("No matching uploaded free-exercise-db exercises were found.");
 
@@ -337,7 +337,7 @@ export async function POST(request: NextRequest) {
       send({ type: "token", content: token });
     }
 
-    send({ type: "status", message: "Building workout..." });
+    send({ type: "status", message: "Building workout" });
     const workout = await generateWorkout(intake, candidates, rejectedExerciseIds);
     const validated = await validateWorkoutExercises(workout, candidates);
     const persistence = await saveWorkoutForUser(user.id, intake, validated.workout);

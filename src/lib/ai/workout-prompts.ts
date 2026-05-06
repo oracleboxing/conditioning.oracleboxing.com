@@ -262,6 +262,8 @@ Supported JSON shape:
 
 Rules:
 - Patch the smallest number of fields needed for the user's requested change.
+- If the edit changes the workout focus, exercises, blocks, timing, intensity, or equipment, include update_workout_meta with a short accurate title.
+- Keep titles plain and useful, for example "30-Minute Dumbbell Upper Body" or "Beginner Core and Conditioning".
 - blockIndex and itemIndex are zero-based from the current workout JSON.
 - If changing exercises or adding an item, use only exact candidate UUIDs for exercises that have images.
 - Keep unchanged parts of the workout stable.
