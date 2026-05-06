@@ -146,9 +146,6 @@ function WorkoutPreview({
         </div>
       )}
 
-      <p className="mt-5 text-sm font-semibold leading-6 text-slate-600">{workout.progressionNote}</p>
-
-      {persistence?.status === "saved" && <p className="mt-6 text-sm font-medium text-zinc-500">Saved. Message the coach to change anything.</p>}
     </section>
   );
 }
