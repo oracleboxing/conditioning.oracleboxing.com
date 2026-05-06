@@ -6,6 +6,7 @@ const exerciseImages = (path: string) => [`${IMAGE_BASE}/${path}/0.jpg`, `${IMAG
 
 export const mockWorkout: WorkoutDisplay = {
   id: "demo-boxing-engine",
+  chatSessionId: null,
   title: "Boxing Engine: Legs, Core and Shoulder Armour",
   goal: "Build a repeatable conditioning base that carries into longer boxing rounds without turning the session into random gym punishment.",
   durationMinutes: 42,

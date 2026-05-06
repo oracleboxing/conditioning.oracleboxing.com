@@ -145,6 +145,7 @@ Structure rules:
 - Keep the block count realistic for the requested time. Short sessions can use 3 blocks, longer sessions can use 4-5.
 - Warm-ups and cooldowns still must use candidate exercises with image-backed UUIDs. Do not invent stretches or drills.
 - Do not ignore what the user wants to avoid.
+- Keep block titles plain and functional. Use names like "Warm-up", "Strength", "Power", "Conditioning", "Core", "Mobility", "Cooldown", or "Finisher". Do not write branded, clever, or boxing-poetic block titles like "Boxing Base Finisher".
 
 JSON shape:
 {

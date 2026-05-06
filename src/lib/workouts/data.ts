@@ -5,27 +5,27 @@ import type { WorkoutBlockType, WorkoutDisplay, WorkoutItem, WorkoutSection, Wor
 const BLOCK_COPY: Record<WorkoutBlockType, { eyebrow: string; fallbackTitle: string; description: string }> = {
   warmup: {
     eyebrow: "Prep",
-    fallbackTitle: "Warm up",
+    fallbackTitle: "Warm-up",
     description: "Get joints, posture and breathing ready before the real work starts.",
   },
   strength: {
     eyebrow: "Strength",
-    fallbackTitle: "Strength block",
+    fallbackTitle: "Strength",
     description: "Controlled reps, clean positions and enough rest to keep standards high.",
   },
   conditioning: {
     eyebrow: "Conditioning",
-    fallbackTitle: "Conditioning block",
+    fallbackTitle: "Conditioning",
     description: "Push the engine without letting the movement turn into random survival work.",
   },
   core: {
     eyebrow: "Core",
-    fallbackTitle: "Core block",
+    fallbackTitle: "Core",
     description: "Build the trunk stiffness, rotation control and bracing that carries into boxing.",
   },
   mobility: {
     eyebrow: "Mobility",
-    fallbackTitle: "Mobility block",
+    fallbackTitle: "Mobility",
     description: "Open up the ranges you need while keeping the session useful and repeatable.",
   },
   cooldown: {
@@ -35,7 +35,7 @@ const BLOCK_COPY: Record<WorkoutBlockType, { eyebrow: string; fallbackTitle: str
   },
   main: {
     eyebrow: "Main work",
-    fallbackTitle: "Main block",
+    fallbackTitle: "Main work",
     description: "The meat of the session. Keep standards high before chasing more load or speed.",
   },
   finisher: {
@@ -190,7 +190,7 @@ function toSections(items: WorkoutItem[]): WorkoutSection[] {
     return [
       {
         type,
-        title: blockItems[0]?.blockTitle || copy.fallbackTitle,
+        title: copy.fallbackTitle,
         eyebrow: copy.eyebrow,
         description: copy.description,
         items: blockItems,
@@ -199,11 +199,12 @@ function toSections(items: WorkoutItem[]): WorkoutSection[] {
   });
 }
 
-function mapWorkout(row: SupabaseWorkoutRow): WorkoutDisplay {
+function mapWorkout(row: SupabaseWorkoutRow, chatSessionId: string | null = null): WorkoutDisplay {
   const items = (row.workout_items ?? []).map(toWorkoutItem);
 
   return {
     id: row.id,
+    chatSessionId,
     title: row.title,
     goal: row.goal,
     durationMinutes: row.duration_minutes,
@@ -262,7 +263,23 @@ export async function getWorkoutById(id: string): Promise<WorkoutLookupResult> {
 
     if (!data) return { status: "not-found" };
 
-    return { status: "ready", workout: mapWorkout(data as unknown as SupabaseWorkoutRow), source: "supabase" };
+    let chatSessionId: string | null = null;
+
+    if (user) {
+      const { data: sessionData } = await supabase
+        .from("workout_chat_sessions")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("workout_id", id)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const session = sessionData as { id?: string } | null;
+      chatSessionId = typeof session?.id === "string" ? session.id : null;
+    }
+
+    return { status: "ready", workout: mapWorkout(data as unknown as SupabaseWorkoutRow, chatSessionId), source: "supabase" };
   } catch (error) {
     throw error;
   }

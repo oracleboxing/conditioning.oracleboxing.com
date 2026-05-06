@@ -4,6 +4,7 @@ import type { ExerciseRow, Json } from "@/lib/supabase/types";
 const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 100;
 const MUSCLE_SCAN_LIMIT = 1000;
+const MIN_FILTER_SCAN_LIMIT = 120;
 
 const BASE_EXERCISE_SELECT = [
   "id",
@@ -117,12 +118,27 @@ function normalizeEquipmentFilter(value: string) {
   if (/^kettlebells?$|^kbs?$/.test(item)) return "kettlebells";
   if (/^resistance bands?$|^bands?$|^mini bands?$|^loop bands?$/.test(item)) return "bands";
   if (/^barbells?$/.test(item)) return "barbell";
-  if (/^body ?weight$|^none$|^no equipment$/.test(item)) return "bodyweight";
+  if (/^body ?weight$|^body only$|^none$|^no equipment$/.test(item)) return "bodyweight";
   return item;
 }
 
 function normalizeToken(value: string) {
   return value.trim().toLowerCase().replace(/[\s_-]+/g, " ");
+}
+
+function equipmentAliases(value: string) {
+  const item = normalizeEquipmentFilter(value);
+  if (item === "bodyweight") return ["bodyweight", "body only"];
+  if (item === "dumbbell") return ["dumbbell", "dumbbells"];
+  if (item === "barbell") return ["barbell", "barbells"];
+  if (item === "bands") return ["bands", "band", "resistance bands"];
+  return [item];
+}
+
+function normalizeEquipmentToken(value: string) {
+  const item = normalizeEquipmentFilter(value);
+  if (item === "body only") return "bodyweight";
+  return item;
 }
 
 function escapeIlike(value: string) {
@@ -197,6 +213,10 @@ function tokenSet(values: string[]) {
   return new Set(values.map(normalizeToken));
 }
 
+function equipmentTokenSet(values: string[]) {
+  return new Set(values.map(normalizeEquipmentToken));
+}
+
 function searchScore(exercise: CompactExercise, filters: { q: string; equipment: string[]; category: string[]; muscle: string[]; movementPattern: string[]; boxingQuality: string[]; difficulty: string[] }) {
   let score = exercise.imageUrls.length ? 20 : 0;
   const haystack = `${exercise.title} ${exercise.category ?? ""} ${exercise.instructionsSummary ?? ""} ${exercise.sourceEquipment ?? ""}`.toLowerCase();
@@ -208,8 +228,8 @@ function searchScore(exercise: CompactExercise, filters: { q: string; equipment:
   }
 
   if (filters.equipment.length) {
-    const wanted = tokenSet(filters.equipment);
-    const available = [...exercise.equipment, exercise.sourceEquipment ?? ""].map(normalizeToken);
+    const wanted = equipmentTokenSet(filters.equipment);
+    const available = [...exercise.equipment, exercise.sourceEquipment ?? ""].map(normalizeEquipmentToken);
     if (available.some((item) => wanted.has(item))) score += 18;
   }
   if (filters.category.length && exercise.category && tokenSet(filters.category).has(normalizeToken(exercise.category))) score += 10;
@@ -283,6 +303,7 @@ export function toCompactExercise(row: ExerciseRow): CompactExercise {
 export async function searchExercises(params: ExerciseSearchParams): Promise<ExerciseSearchResult> {
   const q = (params.q ?? "").trim();
   const equipment = splitFilter(params.equipment).map(normalizeEquipmentFilter);
+  const equipmentQueryValues = [...new Set(equipment.flatMap(equipmentAliases))];
   const category = splitFilter(params.category);
   const muscle = splitFilter(params.muscle);
   const movementPattern = splitFilter(params.movementPattern);
@@ -291,7 +312,8 @@ export async function searchExercises(params: ExerciseSearchParams): Promise<Exe
   const limit = parseLimit(params.limit);
 
   const supabase = getServerSupabaseClient();
-  const scanLimit = muscle.length || movementPattern.length || boxingQuality.length || limit < MUSCLE_SCAN_LIMIT ? MUSCLE_SCAN_LIMIT : limit;
+  const needsInMemoryFilters = muscle.length || movementPattern.length || boxingQuality.length;
+  const scanLimit = needsInMemoryFilters ? Math.min(MUSCLE_SCAN_LIMIT, Math.max(MIN_FILTER_SCAN_LIMIT, limit * 5)) : limit;
 
   const buildQuery = (select: string) => {
     let query = supabase
@@ -306,7 +328,7 @@ export async function searchExercises(params: ExerciseSearchParams): Promise<Exe
       query = query.or(`title.ilike.%${term}%,slug.ilike.%${term}%,summary.ilike.%${term}%,description.ilike.%${term}%`);
     }
 
-    if (equipment.length) query = query.overlaps("equipment_tags", equipment);
+    if (equipmentQueryValues.length) query = query.overlaps("equipment_tags", equipmentQueryValues);
     if (category.length) query = query.in("category", category);
     if (difficulty.length) query = query.in("difficulty", difficulty);
 

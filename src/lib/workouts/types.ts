@@ -37,6 +37,7 @@ export type WorkoutSection = {
 
 export type WorkoutDisplay = {
   id: string;
+  chatSessionId: string | null;
   title: string;
   goal: string | null;
   durationMinutes: number | null;

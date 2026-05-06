@@ -8,16 +8,11 @@ type WorkoutPageProps = {
 };
 
 export async function generateMetadata({ params }: WorkoutPageProps): Promise<Metadata> {
-  const { id } = await params;
-  const result = await getWorkoutById(id);
-
-  if (result.status === "not-found") {
-    return { title: "Workout not found | Oracle Conditioning" };
-  }
+  await params;
 
   return {
-    title: `${result.workout.title} | Oracle Conditioning`,
-    description: result.workout.goal ?? "Saved Oracle Conditioning workout.",
+    title: "Plan | Oracle Conditioning",
+    description: "Saved Oracle Conditioning plan.",
   };
 }
 

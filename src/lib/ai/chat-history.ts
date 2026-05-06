@@ -35,8 +35,55 @@ function cleanTitle(value: string) {
   return compact.length > 64 ? `${compact.slice(0, 61).trim()}...` : compact;
 }
 
+function titleCase(value: string) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function normalizeTitleToken(value: string) {
+  return value.replace(/[-_]+/g, " ").replace(/\bfocused\b/gi, "").replace(/\s+/g, " ").trim();
+}
+
+function primaryFocusFrom(intake: WorkoutIntake) {
+  const focusText = `${intake.goal ?? ""} ${intake.boxingFocus ?? ""} ${intake.sessionBias ?? ""} ${intake.targetMuscles.join(" ")} ${intake.targetMovementPatterns.join(" ")}`.toLowerCase();
+
+  if (focusText.includes("glute") || focusText.includes("hip")) return "Glutes";
+  if (/\b(ab+s?|abdominals?|core|trunk|obliques?)\b/.test(focusText)) return "Core";
+  if (/\b(leg|quad|hamstring|calf|footwork|feet)\b/.test(focusText)) return "Legs";
+  if (/\b(shoulder|rotator|scap)\b/.test(focusText)) return "Shoulders";
+  if (/\b(chest|pec)\b/.test(focusText)) return "Chest";
+  if (/\b(back|lat|row|pull)\b/.test(focusText)) return "Back";
+  if (/\b(power|explosive|punch)\b/.test(focusText)) return "Power";
+  if (/\b(conditioning|engine|gas|cardio|stamina)\b/.test(focusText)) return "Conditioning";
+  if (/\b(mobility|recovery|stretch)\b/.test(focusText)) return "Mobility";
+
+  const fallback = normalizeTitleToken(intake.goal ?? intake.boxingFocus ?? "");
+  return fallback ? titleCase(fallback) : null;
+}
+
+function equipmentTitle(equipment: string[]) {
+  if (!equipment.length) return null;
+  const normalized = equipment.map((item) => item.trim().toLowerCase()).filter(Boolean);
+  if (normalized.some((item) => /full gym|commercial gym|gym access|all equipment|any equipment/.test(item))) return "Full gym";
+  if (normalized.includes("bodyweight")) return "Bodyweight";
+  if (normalized.some((item) => /dumbbells?|dbs?/.test(item))) return "Dumbbells";
+  if (normalized.some((item) => /kettlebells?|kbs?/.test(item))) return "Kettlebells";
+  if (normalized.some((item) => /barbells?/.test(item))) return "Barbell";
+  if (normalized.some((item) => /bands?|resistance bands?/.test(item))) return "Bands";
+  return titleCase(normalizeTitleToken(normalized.slice(0, 2).join(", ")));
+}
+
 export function titleFromIntake(intake: WorkoutIntake, fallbackMessage?: string) {
-  return cleanTitle(intake.goal ?? intake.boxingFocus ?? fallbackMessage ?? "Workout chat");
+  const parts = [
+    primaryFocusFrom(intake),
+    intake.timeMinutes ? `${intake.timeMinutes} min` : null,
+    equipmentTitle(intake.equipment),
+  ].filter((part): part is string => Boolean(part));
+
+  return cleanTitle(parts.length ? parts.join(" · ") : fallbackMessage ?? "Workout chat");
 }
 
 export function jsonFromIntake(intake: WorkoutIntake): Json {

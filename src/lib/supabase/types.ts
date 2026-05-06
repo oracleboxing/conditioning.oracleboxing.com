@@ -85,9 +85,12 @@ export type MemberAccessRow = {
 export type ProfileRow = {
   id: string;
   email: string | null;
+  first_name: string | null;
+  last_name: string | null;
   display_name: string | null;
   avatar_url: string | null;
   created_at: string | null;
+  updated_at?: string | null;
 };
 
 export type WorkoutRow = {

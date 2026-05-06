@@ -2,17 +2,18 @@ import { CommunityGallery } from "./community-gallery";
 import { getCommunityWorkouts } from "@/lib/community/workouts";
 
 export const metadata = {
-  title: "Community | Oracle Conditioning",
+  title: "Team | Oracle Conditioning",
 };
 
 export default async function CommunityPage() {
   const { workouts } = await getCommunityWorkouts();
 
   return (
-    <div className="space-y-6 text-slate-950">
+    <div className="space-y-5 text-slate-950">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Community</h1>
-        <p className="mt-2 text-sm text-slate-500">Member-shared workouts.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Team</p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight">Shared plans</h1>
+        <p className="mt-2 text-sm leading-5 text-slate-500">Browse conditioning sessions from the Oracle crew.</p>
       </div>
       <CommunityGallery workouts={workouts} />
     </div>

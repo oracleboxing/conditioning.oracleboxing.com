@@ -18,12 +18,11 @@ export default async function MyWorkoutsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">My workouts</h1>
-          <p className="mt-2 text-sm text-slate-500">Saved workouts you have created.</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">My plans</h1>
+          <p className="mt-2 text-sm text-slate-500">Saved plans you have created.</p>
         </div>
-        <Link href="/app/create" className="w-fit rounded-lg bg-[#007aff] px-4 py-2 text-sm font-medium text-white hover:bg-[#2f96ff]">New workout</Link>
       </div>
 
       {workouts.length ? (
@@ -40,8 +39,8 @@ export default async function MyWorkoutsPage() {
         </div>
       ) : (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-          <p className="font-medium text-slate-950">No saved workouts yet.</p>
-          <p className="mt-2 text-sm text-slate-500">Create a workout and it will appear here.</p>
+          <p className="font-medium text-slate-950">No saved plans yet.</p>
+          <p className="mt-2 text-sm text-slate-500">Create a plan and it will appear here.</p>
         </div>
       )}
     </div>

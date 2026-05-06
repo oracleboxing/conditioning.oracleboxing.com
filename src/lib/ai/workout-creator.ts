@@ -144,6 +144,15 @@ function heuristicExtract(message: string): Partial<WorkoutIntake> {
   };
 }
 
+function heuristicExtractFromMessages(messages: WorkoutChatMessage[]) {
+  return messages
+    .filter((message) => message.role === "user")
+    .reduce(
+      (intake, message) => mergeIntake(intake, heuristicExtract(message.content)),
+      EMPTY_INTAKE,
+    );
+}
+
 export function missingIntakeQuestions(intake: WorkoutIntake) {
   const missing: string[] = [];
 
@@ -190,9 +199,9 @@ export function applyWorkoutAssumptions(intake: WorkoutIntake): WorkoutIntake {
 export async function extractIntake(messages: WorkoutChatMessage[], existingIntake?: Partial<WorkoutIntake>) {
   const current = normalizeIntake(existingIntake ?? EMPTY_INTAKE);
   const latestUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
-  const fallback = heuristicExtract(latestUserMessage);
+  const fallback = mergeIntake(heuristicExtractFromMessages(messages), heuristicExtract(latestUserMessage));
   const extracted = await openAiJson<Partial<WorkoutIntake>>(intakeExtractionPrompt(current, transcriptFrom(messages)), fallback);
-  return mergeIntake(current, extracted);
+  return mergeIntake(mergeIntake(current, fallback), extracted);
 }
 
 
@@ -300,7 +309,8 @@ function searchTermsFor(intake: WorkoutIntake) {
   if (focus.includes("engine") || focus.includes("gas") || focus.includes("conditioning")) terms.push("burpee", "mountain climber", "jumping jack");
   if (/\b(ab+s?|abs|abdominals?|six[ -]?pack|core|trunk|brace|bracing|obliques?|rotation)\b/.test(focus)) terms.push("plank", "crunch", "leg raise", "knee raise", "dead bug", "hollow", "twist", "woodchop", "pallof", "ab");
 
-  return [...new Set(terms)];
+  const avoidTerms = avoidTermsFor(intake);
+  return [...new Set(terms)].filter((term) => !termMatchesAvoids(term, avoidTerms));
 }
 
 function equipmentParam(intake: WorkoutIntake) {
@@ -334,6 +344,55 @@ function normalizedSet(values: string[]) {
 
 function intersects(values: string[], wanted: Set<string>) {
   return values.some((value) => wanted.has(value.trim().toLowerCase()));
+}
+
+function avoidTermsFor(intake: WorkoutIntake) {
+  const explicitAvoid = (intake.whatToAvoid ?? "").toLowerCase();
+  const constraints = (intake.injuriesOrConstraints ?? "").toLowerCase();
+  const avoidText = `${explicitAvoid} ${constraints}`.trim();
+  const explicitNone = !explicitAvoid || /^(none|none stated|nothing|nothing to avoid|no preferences)$/i.test(explicitAvoid.trim());
+  const hasAvoidSignal = /\b(avoid|except|without|no jumping|no running|no burpees|overhead|jump(?:ing|s)?|burpees?|sprints?)\b/.test(avoidText);
+  if (!avoidText || (explicitNone && !hasAvoidSignal)) return [];
+
+  const terms = new Set<string>();
+  const add = (...items: string[]) => items.forEach((item) => terms.add(item));
+  const focus = `${intake.goal ?? ""} ${intake.boxingFocus ?? ""}`.toLowerCase();
+
+  if (/\bburpees?\b/.test(avoidText)) add("burpee");
+  if (/\bjump(?:ing|s)?\b|\bplyo(?:metric)?s?\b|\bbounds?\b|\bhops?\b/.test(avoidText)) add("jump", "jumping", "bound", "hop", "plyo");
+  if (/\brunn?ing\b|\bsprints?\b/.test(avoidText)) add("run", "running", "sprint");
+  if (/\boverhead\b/.test(avoidText)) add("overhead", "shoulder press", "military press");
+  if (/\bpress(?:ing)?\b/.test(avoidText) && /\bshoulder|overhead|rotator|impingement\b/.test(avoidText)) add("shoulder press", "military press");
+  if (/\bupright rows?\b/.test(avoidText)) add("upright row");
+  if (/\bshoulder|rotator|impingement\b/.test(`${avoidText} ${focus}`) && (/\boverhead|press|pain|impingement\b/.test(avoidText) || /\brotator\b/.test(focus))) add("upright row", "dip");
+
+  return [...terms];
+}
+
+function termMatchesAvoids(term: string, avoidTerms: string[]) {
+  const normalized = term.toLowerCase();
+  return avoidTerms.some((avoid) => normalized.includes(avoid) || avoid.includes(normalized));
+}
+
+function exerciseMatchesAvoids(exercise: CompactExercise, avoidTerms: string[]) {
+  if (!avoidTerms.length) return false;
+  const haystack = [
+    exercise.title,
+    exercise.slug,
+    exercise.category ?? "",
+    exercise.instructionsSummary ?? "",
+    exercise.sourceEquipment ?? "",
+    ...exercise.movementPatterns,
+    ...exercise.boxingQualities,
+    ...exercise.boxingSnc.roles,
+    ...exercise.boxingSnc.movementFamilies,
+    ...exercise.boxingSnc.adaptations,
+  ].join(" ").toLowerCase();
+
+  return avoidTerms.some((term) => {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`\\b${escaped.replace(/\\ /g, "\\s+")}\\b`, "i").test(haystack);
+  });
 }
 
 function scoreExerciseCandidate(exercise: CompactExercise, intake: WorkoutIntake, config: ReturnType<typeof searchConfigFor>, terms: string[], equipment?: string, difficulty?: string) {
@@ -499,25 +558,27 @@ export async function gatherExerciseCandidates(intake: WorkoutIntake, rejectedEx
 
   const config = searchConfigFor(intake);
   const terms = searchTermsFor(intake);
+  const avoidTerms = avoidTermsFor(intake);
 
-  add((await searchExercises({ equipment, difficulty: levels, limit: 100 })).data);
+  if (equipment) add((await searchExercises({ equipment, difficulty: levels, limit: 80 })).data);
 
   await Promise.all([
-    ...config.boxingQualities.map((boxingQuality) => searchExercises({ boxingQuality, equipment, difficulty: levels, limit: 30 }).then((result) => add(result.data))),
-    ...config.movementPatterns.map((movementPattern) => searchExercises({ movementPattern, equipment, difficulty: levels, limit: 24 }).then((result) => add(result.data))),
-    ...config.muscles.map((muscle) => searchExercises({ muscle, equipment, difficulty: levels, limit: 20 }).then((result) => add(result.data))),
-    ...terms.slice(0, 10).map((q) => searchExercises({ q, equipment, difficulty: levels, limit: 16 }).then((result) => add(result.data))),
+    ...config.boxingQualities.slice(0, 4).map((boxingQuality) => searchExercises({ boxingQuality, equipment, difficulty: levels, limit: 24 }).then((result) => add(result.data))),
+    ...config.movementPatterns.slice(0, 5).map((movementPattern) => searchExercises({ movementPattern, equipment, difficulty: levels, limit: 20 }).then((result) => add(result.data))),
+    ...config.muscles.slice(0, 5).map((muscle) => searchExercises({ muscle, equipment, difficulty: levels, limit: 18 }).then((result) => add(result.data))),
+    ...terms.slice(0, 8).map((q) => searchExercises({ q, equipment, difficulty: levels, limit: 14 }).then((result) => add(result.data))),
   ]);
 
   // If the user gave specific equipment, do not widen to the whole library.
   // "Only bands" must stay bands, not become dumbbells because the candidate pool was small.
-  if (candidateMap.size < 30 && !equipment) add((await searchExercises({ difficulty: levels, limit: 100 })).data);
+  if (candidateMap.size < 30 && !equipment) add((await searchExercises({ difficulty: levels, limit: 60 })).data);
 
   const rejected = new Set(rejectedExerciseIds);
   const seed = `${intake.goal ?? ""}|${intake.boxingFocus ?? ""}|${intake.targetMuscles.join(",")}|${intake.targetMovementPatterns.join(",")}|${intake.equipment.join(",")}|${new Date().toISOString().slice(0, 10)}`;
   const target = targetProfileFor(intake);
   const scored = [...candidateMap.values()]
     .filter((exercise) => !rejected.has(exercise.id) && exercise.imageUrls.length > 0)
+    .filter((exercise) => !exerciseMatchesAvoids(exercise, avoidTerms))
     .filter((exercise) => exerciseMatchesTarget(exercise, target))
     .map((exercise) => scoreExerciseCandidate(exercise, intake, config, terms, equipment, levels))
     .filter((item) => item.score > 0);
@@ -527,6 +588,7 @@ export async function gatherExerciseCandidates(intake: WorkoutIntake, rejectedEx
     scored.push(
       ...[...candidateMap.values()]
         .filter((exercise) => !rejected.has(exercise.id) && exercise.imageUrls.length > 0)
+        .filter((exercise) => !exerciseMatchesAvoids(exercise, avoidTerms))
         .filter((exercise) => exerciseMatchesTarget(exercise, relaxedTarget))
         .map((exercise) => scoreExerciseCandidate(exercise, intake, config, terms, equipment, levels))
         .filter((item) => item.score > 0),

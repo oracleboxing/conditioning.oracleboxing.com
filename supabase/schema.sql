@@ -6,9 +6,12 @@ create extension if not exists pg_trgm;
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text unique,
+  first_name text,
+  last_name text,
   display_name text,
   avatar_url text,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 create table if not exists public.member_access (
