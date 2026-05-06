@@ -26,7 +26,7 @@ export function AppShell({ children, sessions }: { children: ReactNode; sessions
           <div className="mt-4 space-y-1 overflow-y-auto">
             {sessions.length ? (
               sessions.map((session) => (
-                <Link key={session.id} href={`/app/create?sessionId=${session.id}`} className="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-950">
+                <Link key={session.id} href={`/app/create?sessionId=${session.id}`} prefetch={false} className="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-950">
                   <span className="block truncate">{session.title || "Workout"}</span>
                 </Link>
               ))

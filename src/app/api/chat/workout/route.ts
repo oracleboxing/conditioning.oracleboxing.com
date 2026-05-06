@@ -181,7 +181,10 @@ export async function GET(request: NextRequest) {
 
     const resolvedWorkoutId = session.workout_id ?? workoutIdFromMessageMetadata(messages);
     const workout = resolvedWorkoutId ? await loadGeneratedWorkoutForUser(user.id, resolvedWorkoutId) : null;
-    return Response.json({ sessionId: session.id, session: { ...session, workout_id: resolvedWorkoutId }, messages, workout, warning });
+    return Response.json(
+      { sessionId: session.id, session: { ...session, workout_id: resolvedWorkoutId }, messages, workout, warning },
+      { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } },
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Workout chat load failed.";
     return Response.json({ error: "workout_chat_load_failed", message }, { status: 500 });

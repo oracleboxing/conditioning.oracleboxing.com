@@ -220,7 +220,7 @@ function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId
 
     const loadSession = async (attempt = 1): Promise<void> => {
       try {
-        const response = await fetch(`/api/chat/workout?sessionId=${encodeURIComponent(initialSessionId)}`);
+        const response = await fetch(`/api/chat/workout?sessionId=${encodeURIComponent(initialSessionId)}&t=${Date.now()}`, { cache: "no-store" });
         const payload = (await response.json()) as LoadChatResponse | { message?: string };
         if (!response.ok) throw new Error("message" in payload && payload.message ? payload.message : "Could not load chat history.");
         if (cancelled) return;
