@@ -2,6 +2,7 @@ import type { WorkoutDisplay } from "./types";
 
 const IMAGE_BASE = "https://rabudzkpputmollmpodd.supabase.co/storage/v1/object/public/exercise-images";
 const exerciseImage = (path: string) => `${IMAGE_BASE}/${path}/0.jpg`;
+const exerciseImages = (path: string) => [`${IMAGE_BASE}/${path}/0.jpg`, `${IMAGE_BASE}/${path}/1.jpg`];
 
 export const mockWorkout: WorkoutDisplay = {
   id: "demo-boxing-engine",
@@ -31,6 +32,7 @@ export const mockWorkout: WorkoutDisplay = {
             name: "Battling Ropes",
             category: "conditioning",
             imageUrl: exerciseImage("Battling_Ropes"),
+            imageUrls: exerciseImages("Battling_Ropes"),
             equipment: ["Skipping rope"],
             instructions: ["Alternately raise and lower each rope in a wave pattern.", "Keep your trunk braced and rhythm consistent."],
           },
@@ -53,6 +55,7 @@ export const mockWorkout: WorkoutDisplay = {
             name: "All Fours Quad Stretch",
             category: "mobility",
             imageUrl: exerciseImage("All_Fours_Quad_Stretch"),
+            imageUrls: exerciseImages("All_Fours_Quad_Stretch"),
             equipment: ["Bodyweight"],
             instructions: ["Start on all fours and draw one heel towards your glutes.", "Keep the hips controlled while you open the front of the thigh."],
           },
@@ -83,6 +86,7 @@ export const mockWorkout: WorkoutDisplay = {
             name: "Bodyweight Squat",
             category: "strength",
             imageUrl: exerciseImage("Bodyweight_Squat"),
+            imageUrls: exerciseImages("Bodyweight_Squat"),
             equipment: ["Dumbbell"],
             instructions: ["Stand tall, feet around shoulder width.", "Sit the hips back and down, then stand with control."],
           },
@@ -105,6 +109,7 @@ export const mockWorkout: WorkoutDisplay = {
             name: "Alternating Renegade Row",
             category: "strength",
             imageUrl: exerciseImage("Alternating_Renegade_Row"),
+            imageUrls: exerciseImages("Alternating_Renegade_Row"),
             equipment: ["Resistance band"],
             instructions: ["Set up in a strong plank position with dumbbells or hands planted.", "Row one side at a time while keeping the hips quiet."],
           },
@@ -127,6 +132,7 @@ export const mockWorkout: WorkoutDisplay = {
             name: "Dead Bug",
             category: "core",
             imageUrl: exerciseImage("Dead_Bug"),
+            imageUrls: exerciseImages("Dead_Bug"),
             equipment: ["Bodyweight"],
             instructions: ["Press lower back gently into the floor.", "Reach opposite arm and leg without ribs flaring."],
           },
@@ -157,6 +163,7 @@ export const mockWorkout: WorkoutDisplay = {
             name: "Mountain Climbers",
             category: "conditioning",
             imageUrl: exerciseImage("Mountain_Climbers"),
+            imageUrls: exerciseImages("Mountain_Climbers"),
             equipment: ["Bodyweight"],
             instructions: ["Drive the knees under the body from a strong plank position.", "Keep shoulders stacked over hands and alternate legs quickly."],
           },

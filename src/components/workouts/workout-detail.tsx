@@ -17,102 +17,105 @@ function formatDuration(seconds: number | null) {
 function prescription(item: WorkoutItem) {
   const parts = [
     item.sets ? plural(item.sets, "set") : null,
-    item.reps ? item.reps : null,
+    item.reps,
     formatDuration(item.durationSeconds),
-    item.restSeconds ? `${item.restSeconds}s rest` : null,
+    item.restSeconds !== null ? `rest ${item.restSeconds}s` : null,
     item.tempo ? `tempo ${item.tempo}` : null,
   ].filter(Boolean);
 
   return parts.length ? parts.join(" · ") : "As prescribed";
 }
 
-function StatusPill({ visibility }: { visibility: WorkoutDisplay["visibility"] }) {
-  const community = visibility === "community";
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${
-        community
-          ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-          : "border border-slate-300 bg-slate-100 text-slate-700"
-      }`}
-    >
-      {community ? "Community" : "Private"}
-    </span>
-  );
+function detailCopy(item: WorkoutItem) {
+  const instructions = item.exercise.instructions.filter(Boolean);
+  const firstInstructions = instructions.slice(0, 4);
+  const cuePool = [item.coachingNote, ...item.coachingCues, ...instructions].filter((cue): cue is string => Boolean(cue?.trim()));
+  const cues = [...new Set(cuePool)].slice(0, 5);
+
+  return { firstInstructions, cues };
 }
 
-function ExerciseImage({ item }: { item: WorkoutItem }) {
-  if (item.exercise.imageUrl) {
+function JoinedExerciseImages({ item }: { item: WorkoutItem }) {
+  const images = item.exercise.imageUrls.length ? item.exercise.imageUrls.slice(0, 2) : item.exercise.imageUrl ? [item.exercise.imageUrl] : [];
+
+  if (!images.length) {
     return (
-      <Image
-        src={item.exercise.imageUrl}
-        alt=""
-        width={360}
-        height={360}
-        unoptimized
-        className="h-44 w-full rounded-2xl border border-slate-200 bg-slate-100 object-cover sm:h-full"
-      />
+      <div className="flex h-28 w-56 shrink-0 items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 text-center text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">
+        Exercise image
+      </div>
     );
   }
 
   return (
-    <div className="flex h-44 w-full items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-center text-xs font-bold uppercase tracking-[0.14em] text-slate-500 sm:h-full">
-      Exercise image
+    <div className="flex h-28 w-56 shrink-0 overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-100 sm:h-32 sm:w-64">
+      {images.map((url, imageIndex) => (
+        <Image
+          key={url}
+          src={url}
+          alt={`${item.exercise.name} image ${imageIndex + 1}`}
+          width={220}
+          height={220}
+          unoptimized
+          className={`h-full min-w-0 flex-1 object-cover ${images.length > 1 && imageIndex > 0 ? "border-l border-zinc-200" : ""}`}
+        />
+      ))}
     </div>
   );
 }
 
 function ExerciseCard({ item }: { item: WorkoutItem }) {
+  const { firstInstructions, cues } = detailCopy(item);
+
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid sm:grid-cols-[180px_1fr] sm:gap-5 sm:p-5">
-      <ExerciseImage item={item} />
-      <div className="mt-5 sm:mt-0">
+    <article className="flex flex-col gap-5 border-t border-zinc-100 py-6 first:border-t-0 sm:flex-row">
+      <JoinedExerciseImages item={item} />
+
+      <div className="min-w-0 flex-1">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#7db7ff]">Step {item.orderIndex}</p>
-            <h3 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">{item.exercise.name}</h3>
-            <p className="mt-2 text-sm font-semibold text-slate-500">{prescription(item)}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">Step {item.orderIndex}</p>
+            <h3 className="mt-2 text-xl font-semibold tracking-tight text-black">{item.exercise.name}</h3>
+            <p className="mt-2 text-sm font-medium leading-6 text-zinc-600">{prescription(item)}</p>
           </div>
           {item.exercise.category ? (
-            <span className="w-fit rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <span className="w-fit rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
               {item.exercise.category}
             </span>
           ) : null}
         </div>
 
-        {item.exercise.equipment.length ? (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {item.exercise.equipment.map((piece) => (
-              <span key={piece} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
-                {piece}
-              </span>
-            ))}
-          </div>
-        ) : null}
+        {item.coachingNote ? <p className="mt-4 text-sm leading-6 text-zinc-700">{item.coachingNote}</p> : null}
 
-        {item.coachingNote ? (
-          <div className="mt-5 rounded-2xl border border-[#007aff]/25 bg-[#007aff]/10 p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#7db7ff]">Coach note</p>
-            <p className="mt-2 text-sm leading-6 text-slate-900">{item.coachingNote}</p>
-          </div>
-        ) : null}
-
-        {item.coachingCues.length ? (
-          <div className="mt-5">
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Cues</p>
-            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-              {item.coachingCues.slice(0, 4).map((cue) => (
-                <li key={cue} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500">
-                  {cue}
+        {firstInstructions.length ? (
+          <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">How to do it</p>
+            <ol className="mt-3 space-y-2 text-sm leading-6 text-zinc-600">
+              {firstInstructions.map((instruction, index) => (
+                <li key={`${item.id}-instruction-${index}`} className="flex gap-3">
+                  <span className="mt-0.5 text-xs font-semibold text-zinc-400">{index + 1}</span>
+                  <span>{instruction}</span>
                 </li>
               ))}
-            </ul>
+            </ol>
+          </div>
+        ) : null}
+
+        {cues.length ? (
+          <div className="mt-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Cues</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {cues.map((cue) => (
+                <span key={cue} className="rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-medium leading-5 text-zinc-600">
+                  {cue}
+                </span>
+              ))}
+            </div>
           </div>
         ) : null}
 
         {item.boxingRelevance ? (
-          <p className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-500">
-            <span className="font-bold text-slate-950">Boxing relevance: </span>
+          <p className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm leading-6 text-zinc-700">
+            <span className="font-semibold text-black">Boxing relevance: </span>
             {item.boxingRelevance}
           </p>
         ) : null}
@@ -123,13 +126,13 @@ function ExerciseCard({ item }: { item: WorkoutItem }) {
 
 function WorkoutSectionBlock({ section }: { section: WorkoutSection }) {
   return (
-    <section className="mt-10">
-      <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#7db7ff]">{section.eyebrow}</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{section.title}</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{section.description}</p>
+    <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-7">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">{section.eyebrow}</p>
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-black">{section.title}</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">{section.description}</p>
       </div>
-      <div className="grid gap-4">
+      <div className="mt-5">
         {section.items.map((item) => (
           <ExerciseCard key={item.id} item={item} />
         ))}
@@ -138,73 +141,50 @@ function WorkoutSectionBlock({ section }: { section: WorkoutSection }) {
   );
 }
 
+function MetaCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">{label}</p>
+      <p className="mt-2 text-sm font-semibold leading-6 text-black">{value}</p>
+    </div>
+  );
+}
+
 export function WorkoutDetail({ workout, notice }: { workout: WorkoutDisplay; notice?: string }) {
   return (
-    <main className="min-h-screen bg-white text-slate-950">
-      <div className="mx-auto w-full max-w-none px-4 py-6 sm:px-6 sm:py-8">
-        <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <Link href="/app" className="text-sm font-semibold text-slate-500 transition hover:text-slate-950">
-                ← Back to app
-              </Link>
-              <p className="mt-6 text-sm font-semibold uppercase tracking-[0.1em] text-[#7db7ff]">Oracle Performance Lab</p>
-              <h1 className="mt-3 max-w-4xl text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-                {workout.title}
-              </h1>
-              {workout.goal ? <p className="mt-5 max-w-3xl text-base leading-7 text-slate-500">{workout.goal}</p> : null}
-            </div>
-            <StatusPill visibility={workout.visibility} />
+    <main className="min-h-screen bg-white text-black">
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+        <header className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-8">
+          <Link href="/app/workouts" className="text-sm font-medium text-zinc-500 transition hover:text-black">
+            ← Back to workouts
+          </Link>
+          <div className="mt-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Oracle Conditioning</p>
+            <h1 className="mt-3 max-w-4xl text-4xl font-semibold tracking-tight text-black sm:text-5xl">{workout.title}</h1>
+            {workout.goal ? <p className="mt-4 max-w-3xl text-base leading-7 text-zinc-600">{workout.goal}</p> : null}
           </div>
 
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Duration</p>
-              <p className="mt-2 text-xl font-semibold">{workout.durationMinutes ? `${workout.durationMinutes} min` : "Flexible"}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Level</p>
-              <p className="mt-2 text-xl font-semibold">{workout.difficulty ?? "Adaptive"}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Equipment</p>
-              <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">
-                {workout.equipment.length ? workout.equipment.join(", ") : "Bodyweight or as listed"}
-              </p>
-            </div>
+          <div className="mt-7 grid gap-3 sm:grid-cols-3">
+            <MetaCard label="Duration" value={workout.durationMinutes ? `${workout.durationMinutes} min` : "Flexible"} />
+            <MetaCard label="Level" value={workout.difficulty ?? "Adaptive"} />
+            <MetaCard label="Equipment" value={workout.equipment.length ? workout.equipment.join(", ") : "Bodyweight or as listed"} />
           </div>
 
           {workout.intakeSummary ? (
-            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Intake summary</p>
-              <p className="mt-2 text-sm leading-6 text-slate-500">{workout.intakeSummary}</p>
+            <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">Original request</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-600">{workout.intakeSummary}</p>
             </div>
           ) : null}
         </header>
 
-        {notice ? (
-          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">{notice}</div>
-        ) : null}
+        {notice ? <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">{notice}</div> : null}
 
-        {workout.sections.map((section) => (
-          <WorkoutSectionBlock key={section.type} section={section} />
-        ))}
-
-        <section className="mt-10 grid gap-3 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-[1fr_auto] sm:items-center sm:p-6">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#7db7ff]">Next actions</p>
-            <h2 className="mt-2 text-xl font-semibold tracking-tight">Save it, remix it, or share it later.</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">CTA placeholders are here so the future AI chat and community gallery can hook in cleanly.</p>
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <button className="rounded-full bg-[#007aff] px-5 py-3 text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-[#2f96ff]">
-              Save workout
-            </button>
-            <button className="rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold uppercase tracking-wide text-slate-950 transition hover:bg-slate-100">
-              Remix
-            </button>
-          </div>
-        </section>
+        <div className="mt-6 space-y-6">
+          {workout.sections.map((section) => (
+            <WorkoutSectionBlock key={section.type} section={section} />
+          ))}
+        </div>
       </div>
     </main>
   );

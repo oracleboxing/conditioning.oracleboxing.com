@@ -1,11 +1,12 @@
 export type WorkoutVisibility = "private" | "community";
-export type WorkoutBlockType = "warmup" | "main" | "finisher" | "cooldown";
+export type WorkoutBlockType = "warmup" | "strength" | "conditioning" | "core" | "mobility" | "cooldown" | "main" | "finisher";
 
 export type WorkoutExercise = {
   id: string;
   name: string;
   category: string | null;
   imageUrl: string | null;
+  imageUrls: string[];
   equipment: string[];
   instructions: string[];
 };

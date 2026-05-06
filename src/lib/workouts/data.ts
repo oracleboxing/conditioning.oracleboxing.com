@@ -4,9 +4,34 @@ import type { WorkoutBlockType, WorkoutDisplay, WorkoutItem, WorkoutSection, Wor
 
 const BLOCK_COPY: Record<WorkoutBlockType, { eyebrow: string; fallbackTitle: string; description: string }> = {
   warmup: {
-    eyebrow: "Warmup",
+    eyebrow: "Prep",
     fallbackTitle: "Warm up",
-    description: "Prepare the body, joints and breathing before the main work starts.",
+    description: "Get joints, posture and breathing ready before the real work starts.",
+  },
+  strength: {
+    eyebrow: "Strength",
+    fallbackTitle: "Strength block",
+    description: "Controlled reps, clean positions and enough rest to keep standards high.",
+  },
+  conditioning: {
+    eyebrow: "Conditioning",
+    fallbackTitle: "Conditioning block",
+    description: "Push the engine without letting the movement turn into random survival work.",
+  },
+  core: {
+    eyebrow: "Core",
+    fallbackTitle: "Core block",
+    description: "Build the trunk stiffness, rotation control and bracing that carries into boxing.",
+  },
+  mobility: {
+    eyebrow: "Mobility",
+    fallbackTitle: "Mobility block",
+    description: "Open up the ranges you need while keeping the session useful and repeatable.",
+  },
+  cooldown: {
+    eyebrow: "Cooldown",
+    fallbackTitle: "Cooldown",
+    description: "Bring the system down and leave the next session possible.",
   },
   main: {
     eyebrow: "Main work",
@@ -18,14 +43,9 @@ const BLOCK_COPY: Record<WorkoutBlockType, { eyebrow: string; fallbackTitle: str
     fallbackTitle: "Finisher",
     description: "A short final push that should still look like training, not survival theatre.",
   },
-  cooldown: {
-    eyebrow: "Cooldown",
-    fallbackTitle: "Cooldown",
-    description: "Bring the system down and leave the next session possible.",
-  },
 };
 
-const SECTION_ORDER: WorkoutBlockType[] = ["warmup", "main", "finisher", "cooldown"];
+const SECTION_ORDER: WorkoutBlockType[] = ["warmup", "strength", "conditioning", "core", "mobility", "main", "finisher", "cooldown"];
 
 type SupabaseWorkoutRow = {
   id: string;
@@ -66,6 +86,7 @@ type SupabaseExerciseRow = {
   instructions?: string[] | null;
   instructions_json?: Json | null;
   image_paths?: string[] | null;
+  image_urls?: string[] | null;
   structure_json?: ExerciseStructureJson | null;
 };
 
@@ -85,7 +106,7 @@ export type SavedWorkoutsResult = {
 };
 
 function isBlockType(value: string | null): value is WorkoutBlockType {
-  return value === "warmup" || value === "main" || value === "finisher" || value === "cooldown";
+  return value === "warmup" || value === "strength" || value === "conditioning" || value === "core" || value === "mobility" || value === "main" || value === "finisher" || value === "cooldown";
 }
 
 function stringArray(value: unknown): string[] {
@@ -97,12 +118,13 @@ function firstExercise(row: SupabaseWorkoutItemRow): SupabaseExerciseRow | null 
   return row.exercises;
 }
 
-function firstImageUrl(exercise: SupabaseExerciseRow | null): string | null {
-  if (!exercise) return null;
-  const direct = stringArray(exercise.image_paths);
+function imageUrls(exercise: SupabaseExerciseRow | null): string[] {
+  if (!exercise) return [];
+  const direct = stringArray(exercise.image_urls);
+  const legacy = stringArray(exercise.image_paths);
   const structured = stringArray(exercise.structure_json?.image_paths);
   const stored = stringArray(exercise.structure_json?.source_payload?.storage_image_urls);
-  return [...direct, ...structured, ...stored].find((url) => /^https?:\/\//i.test(url)) ?? null;
+  return [...new Set([...direct, ...legacy, ...structured, ...stored].filter((url) => /^https?:\/\//i.test(url)))];
 }
 
 function instructions(exercise: SupabaseExerciseRow | null): string[] {
@@ -124,6 +146,7 @@ function cues(value: SupabaseWorkoutItemRow["coaching_cues"]): string[] {
 function toWorkoutItem(row: SupabaseWorkoutItemRow): WorkoutItem {
   const exercise = firstExercise(row);
   const blockType = isBlockType(row.block_type) ? row.block_type : "main";
+  const exerciseImages = imageUrls(exercise);
 
   return {
     id: row.id,
@@ -134,7 +157,8 @@ function toWorkoutItem(row: SupabaseWorkoutItemRow): WorkoutItem {
       id: exercise?.id ?? row.id,
       name: exercise?.title ?? exercise?.name ?? "Custom exercise",
       category: exercise?.category ?? null,
-      imageUrl: firstImageUrl(exercise),
+      imageUrl: exerciseImages[0] ?? null,
+      imageUrls: exerciseImages,
       equipment: [...new Set(equipment(exercise))],
       instructions: instructions(exercise),
     },
@@ -223,7 +247,7 @@ export async function getWorkoutById(id: string): Promise<WorkoutLookupResult> {
       .select(
         `id,title,goal,duration_minutes,difficulty,equipment,visibility,intake_summary,created_at,
         workout_items(id,order_index,block_type,block_title,sets,reps,duration_seconds,rest_seconds,tempo,coaching_note,
-          exercises(id,title,category,equipment_tags,instructions_json,structure_json))`,
+          exercises(id,title,category,equipment_tags,instructions_json,structure_json,image_urls))`,
       )
       .eq("id", id)
       .order("order_index", { referencedTable: "workout_items", ascending: true });
