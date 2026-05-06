@@ -82,6 +82,32 @@ async function streamAssistantMessage(send: (event: StreamEvent) => void, messag
   }
 }
 
+
+function hasExplicitPreGenerationHold(message: string) {
+  const lower = message.toLowerCase().replace(/\s+/g, " ");
+  const buildVerb = "(?:write|writing|generate|generating|create|creating|build|building|make|making|draft|drafting|do)";
+  const beforeBuild = new RegExp(`\\b(before|prior to)\\b.{0,80}\\b${buildVerb}\\b`).test(lower);
+  const wantsCheck = /\b(tell|ask|check|confirm|question|questions|need|needs|anything else|let me know)\b/.test(lower);
+  const dontUntil = new RegExp(`\\b(don't|dont|do not)\\b.{0,50}\\b${buildVerb}\\b.{0,80}\\b(until|before)\\b`).test(lower);
+  const askBefore = new RegExp(`\\b(ask|check|confirm)\\b.{0,40}\\b(me|with me)\\b.{0,80}\\bbefore\\b.{0,80}\\b${buildVerb}\\b`).test(lower);
+
+  return (beforeBuild && wantsCheck) || dontUntil || askBefore;
+}
+
+function preGenerationHoldQuestion(intake: WorkoutIntake, missingQuestions: string[]) {
+  if (missingQuestions.length) return questionMessage(missingQuestions);
+
+  if (!intake.preferredIntensity && !intake.recentTrainingOrFatigue) {
+    return "Before I write it, quick check: should this be controlled, hard, or low-impact today?";
+  }
+
+  if (!intake.whatToAvoid || /none stated|unknown/i.test(intake.whatToAvoid)) {
+    return "Before I write it, anything you want me to avoid? Short answer is fine.";
+  }
+
+  return "Before I write it, confirm you’re happy for me to build it from that info.";
+}
+
 function latestUserMessage(messages: WorkoutChatMessage[]) {
   return [...messages].reverse().find((message) => message.role === "user") ?? null;
 }
@@ -266,9 +292,10 @@ export async function POST(request: NextRequest) {
 
     const extracted = await extractIntake(messages, body.intake);
     const questions = missingIntakeQuestions(extracted);
+    const shouldHoldBeforeGenerating = userMessage ? hasExplicitPreGenerationHold(userMessage.content) : false;
 
-    if (questions.length) {
-      const assistantMessage = questionMessage(questions);
+    if (questions.length || shouldHoldBeforeGenerating) {
+      const assistantMessage = shouldHoldBeforeGenerating ? preGenerationHoldQuestion(extracted, questions) : questionMessage(questions);
       if (sessionId) {
         const title = titleFromIntake(extracted, userMessage?.content ?? "Workout chat");
         const assistantPersistWarning = await persistChatMessage(supabase, user.id, sessionId, { role: "assistant", content: assistantMessage }, { type: "question" });

@@ -83,7 +83,8 @@ Rules:
 - Do not list the full workout yet.
 - Confirm the useful coaching picture in plain language: goal, time, kit/environment, intensity or bias, and any constraints.
 - Say what you are about to build, for example warm-up, main strength or power work, conditioning/core, cooldown.
-- If equipment is vague, ask what equipment they have instead of assuming.`,
+- Do not ask a question here. If a question is needed, the chat route will stop before workout generation.
+- Do not say "before I write/build/generate it" unless generation is actually being stopped. In this step, state the plan and continue.`,
     },
     {
       role: "user" as const,
