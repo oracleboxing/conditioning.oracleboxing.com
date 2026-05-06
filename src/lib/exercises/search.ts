@@ -216,15 +216,25 @@ function searchScore(exercise: CompactExercise, filters: { q: string; equipment:
   if (filters.difficulty.length && exercise.difficulty && tokenSet(filters.difficulty).has(normalizeToken(exercise.difficulty))) score += 8;
 
   const wantedMuscles = tokenSet(filters.muscle);
-  if (wantedMuscles.size && [...exercise.muscles.primary, ...exercise.muscles.secondary].map(normalizeToken).some((muscle) => wantedMuscles.has(muscle))) score += 14;
+  if (wantedMuscles.size) {
+    const primaryMatches = exercise.muscles.primary.map(normalizeToken).filter((muscle) => wantedMuscles.has(muscle)).length;
+    const secondaryMatches = exercise.muscles.secondary.map(normalizeToken).filter((muscle) => wantedMuscles.has(muscle)).length;
+    const regionMatches = exercise.boxingSnc.bodyRegions.map(normalizeToken).filter((region) => wantedMuscles.has(region)).length;
+    score += primaryMatches * 34;
+    score += secondaryMatches * 10;
+    score += regionMatches * 22;
+  }
 
   const wantedPatterns = tokenSet(filters.movementPattern);
-  const patternMatches = exercise.movementPatterns.map(normalizeToken).filter((pattern) => wantedPatterns.has(pattern)).length;
+  const patternMatches = [...exercise.movementPatterns, ...exercise.boxingSnc.movementFamilies].map(normalizeToken).filter((pattern) => wantedPatterns.has(pattern)).length;
   score += patternMatches * 16;
 
   const wantedQualities = tokenSet(filters.boxingQuality);
-  const qualityMatches = exercise.boxingQualities.map(normalizeToken).filter((quality) => wantedQualities.has(quality)).length;
+  const qualityMatches = [...exercise.boxingQualities, ...exercise.boxingSnc.adaptations].map(normalizeToken).filter((quality) => wantedQualities.has(quality)).length;
   score += qualityMatches * 18;
+
+  if (exercise.boxingSnc.scores.boxing_transfer) score += Math.round(exercise.boxingSnc.scores.boxing_transfer / 20);
+  if (exercise.boxingSnc.scores.target_fit && wantedMuscles.size) score += Math.round(exercise.boxingSnc.scores.target_fit / 25);
 
   return score;
 }
