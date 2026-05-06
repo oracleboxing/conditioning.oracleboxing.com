@@ -216,32 +216,43 @@ function CreateWorkoutThread({ initialSessionId, showDebug }: { initialSessionId
     if (!initialSessionId) return;
 
     let cancelled = false;
-    fetch(`/api/chat/workout?sessionId=${encodeURIComponent(initialSessionId)}`)
-      .then(async (response) => {
+    let retryTimer: number | null = null;
+
+    const loadSession = async (attempt = 1): Promise<void> => {
+      try {
+        const response = await fetch(`/api/chat/workout?sessionId=${encodeURIComponent(initialSessionId)}`);
         const payload = (await response.json()) as LoadChatResponse | { message?: string };
         if (!response.ok) throw new Error("message" in payload && payload.message ? payload.message : "Could not load chat history.");
-        return payload as LoadChatResponse;
-      })
-      .then((payload) => {
         if (cancelled) return;
-        setSessionId(payload.sessionId);
-        setMessages(payload.messages.length ? payload.messages.map((message) => ({ role: message.role, content: message.content })) : []);
-        setIntake(payload.session.intake_summary ?? null);
-        if (payload.workout) {
-          setWorkout(payload.workout);
-          setPersistence(payload.session.workout_id ? { status: "saved", workoutId: payload.session.workout_id } : null);
-        } else {
+
+        const loaded = payload as LoadChatResponse;
+        setSessionId(loaded.sessionId);
+        setMessages(loaded.messages.length ? loaded.messages.map((message) => ({ role: message.role, content: message.content })) : []);
+        setIntake(loaded.session.intake_summary ?? null);
+
+        if (loaded.workout) {
+          setWorkout(loaded.workout);
+          setPersistence(loaded.session.workout_id ? { status: "saved", workoutId: loaded.session.workout_id } : null);
+        } else if (loaded.session.workout_id && attempt < 3) {
+          // The session row can hydrate before the saved workout relation is readable.
+          // Do not destroy an already-open preview, retry briefly instead.
+          retryTimer = window.setTimeout(() => void loadSession(attempt + 1), 250 * attempt);
+        } else if (!loaded.session.workout_id) {
           setWorkout(null);
           setPersistence(null);
         }
-        if (payload.warning) setError(payload.warning);
-      })
-      .catch((caught) => {
+
+        if (loaded.warning) setError(loaded.warning);
+      } catch (caught) {
         if (!cancelled) setError(caught instanceof Error ? caught.message : "Could not load chat history.");
-      });
+      }
+    };
+
+    void loadSession();
 
     return () => {
       cancelled = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
     };
   }, [initialSessionId]);
 
