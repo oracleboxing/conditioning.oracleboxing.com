@@ -87,14 +87,14 @@ function ExerciseCard({
   return (
     <div className="flex gap-4 border-t border-zinc-100 py-5 first:border-t-0">
       {item.exercise?.imageUrls?.length ? (
-        <div className="flex shrink-0 gap-2">
-          {item.exercise.imageUrls.slice(0, 2).map((url, imageIndex) => (
+        <div className="flex shrink-0 overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-100">
+          {item.exercise.imageUrls.slice(0, 2).map((url, imageIndex, images) => (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               key={url}
               src={url}
               alt={`${item.exercise?.title ?? "Exercise"} image ${imageIndex + 1}`}
-              className="h-20 w-20 rounded-2xl border border-zinc-200 object-cover sm:h-24 sm:w-24"
+              className={`h-24 w-24 object-cover sm:h-28 sm:w-28 ${images.length > 1 && imageIndex > 0 ? "border-l border-zinc-200" : ""}`}
               loading="lazy"
             />
           ))}
