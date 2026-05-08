@@ -91,10 +91,16 @@ export function FloatingNav({ user, contained = false, position = "bottom" }: { 
     };
   }, []);
 
+  const navPlacement =
+    position === "left"
+      ? "inset-x-0 bottom-4 justify-center lg:inset-x-auto lg:left-6 lg:top-1/2 lg:bottom-auto lg:-translate-y-1/2"
+      : `inset-x-0 justify-center ${position === "top" ? "top-4" : "bottom-4"}`;
+  const leftResponsiveStack = position === "left" ? "items-center lg:flex-col" : "items-center";
+
   return (
-    <nav aria-label="Primary" className={`${contained ? "absolute" : "fixed"} z-50 flex px-2 ${position === "left" ? "left-6 top-1/2 -translate-y-1/2" : `inset-x-0 justify-center ${position === "top" ? "top-4" : "bottom-4"}`}`}>
-      <div className={`flex max-w-full gap-1.5 ${position === "left" ? "flex-col items-center" : "items-center"}`}>
-        <div className={`flex min-w-0 gap-1.5 rounded-full border border-slate-200 bg-white/95 p-1.5 shadow-[0_18px_60px_rgba(15,23,42,0.16)] backdrop-blur ${position === "left" ? "flex-col items-center" : "items-center"}`}>
+    <nav aria-label="Primary" className={`${contained ? "absolute" : "fixed"} z-50 flex px-2 ${navPlacement}`}>
+      <div className={`flex max-w-full gap-1.5 ${leftResponsiveStack}`}>
+        <div className={`flex min-w-0 gap-1.5 rounded-full border border-slate-200 bg-white/95 p-1.5 shadow-[0_18px_60px_rgba(15,23,42,0.16)] backdrop-blur ${leftResponsiveStack}`}>
           {navItems.map((item) => {
             const active = item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
@@ -103,7 +109,7 @@ export function FloatingNav({ user, contained = false, position = "bottom" }: { 
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 aria-label={item.label}
-                className={`grid place-items-center content-center rounded-full px-1 pb-0.5 font-semibold transition ${position === "left" ? "h-[4.25rem] w-[4.25rem] text-[10px]" : "h-11 w-[3.75rem] text-[8.5px] min-[390px]:w-16 min-[390px]:text-[9px] sm:h-12 sm:w-[4.6rem] sm:text-[10px]"} ${
+                className={`grid place-items-center content-center rounded-full px-1 pb-0.5 font-semibold transition ${position === "left" ? "h-11 w-[3.75rem] text-[8.5px] min-[390px]:w-16 min-[390px]:text-[9px] sm:h-12 sm:w-[4.6rem] sm:text-[10px] lg:h-[4.25rem] lg:w-[4.25rem] lg:text-[10px]" : "h-11 w-[3.75rem] text-[8.5px] min-[390px]:w-16 min-[390px]:text-[9px] sm:h-12 sm:w-[4.6rem] sm:text-[10px]"} ${
                   active ? "bg-slate-100 text-slate-950" : "text-slate-500 hover:bg-slate-50 hover:text-slate-950"
                 }`}
               >
@@ -116,7 +122,7 @@ export function FloatingNav({ user, contained = false, position = "bottom" }: { 
 
         <div ref={chooserRef} className="relative">
           {chooserOpen ? (
-            <div className={`absolute w-56 overflow-hidden rounded-3xl border border-slate-200 bg-white p-2 text-sm font-semibold text-slate-800 shadow-[0_24px_70px_rgba(15,23,42,0.22)] ${position === "left" ? "left-[calc(100%+0.75rem)] top-0" : `right-0 ${position === "top" ? "top-[calc(100%+0.75rem)]" : "bottom-[calc(100%+0.75rem)]"}`}`}>
+            <div className={`absolute w-56 overflow-hidden rounded-3xl border border-slate-200 bg-white p-2 text-sm font-semibold text-slate-800 shadow-[0_24px_70px_rgba(15,23,42,0.22)] ${position === "left" ? "right-0 bottom-[calc(100%+0.75rem)] lg:right-auto lg:bottom-auto lg:left-[calc(100%+0.75rem)] lg:top-0" : `right-0 ${position === "top" ? "top-[calc(100%+0.75rem)]" : "bottom-[calc(100%+0.75rem)]"}`}`}>
               <p className="px-3 pb-2 pt-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">New workout</p>
               <Link href={{ pathname: "/app/create/manual", query: { next: pathname } }} onClick={() => setChooserOpen(false)} className="block rounded-2xl px-3 py-3 transition hover:bg-slate-100">
                 Choose exercises
