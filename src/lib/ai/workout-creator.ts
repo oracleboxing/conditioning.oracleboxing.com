@@ -153,29 +153,111 @@ function heuristicExtractFromMessages(messages: WorkoutChatMessage[]) {
     );
 }
 
+export type WorkoutConversationMode = "build_now" | "shape_idea" | "safety_clarify";
+
+type CoachQuestionResult = {
+  mode: WorkoutConversationMode;
+  questions: string[];
+};
+
+function includesAny(value: string, patterns: RegExp[]) {
+  return patterns.some((pattern) => pattern.test(value));
+}
+
+function hasVagueInjuryMention(message: string, intake: WorkoutIntake) {
+  const lower = message.toLowerCase();
+  const constraintText = `${lower} ${intake.injuriesOrConstraints ?? ""} ${intake.whatToAvoid ?? ""}`.toLowerCase();
+  const mentionsPain = /\b(injury|injured|pain|niggle|sore|dodgy|bad knee|bad shoulder|back issue|shoulder issue|knee issue)\b/.test(constraintText);
+  if (!mentionsPain) return false;
+  const detailGiven = /\b(squat|lunge|jump|run|sprint|overhead|press|pull|hinge|impact|rotation|extension|bending|twisting|left|right)\b/.test(constraintText);
+  return !detailGiven;
+}
+
+function ideaQuestionFor(message: string, intake: WorkoutIntake) {
+  const focus = `${message} ${intake.goal ?? ""} ${intake.boxingFocus ?? ""} ${intake.sessionBias ?? ""}`.toLowerCase();
+
+  if (includesAny(focus, [/pressure|tyson|inside fighter|come forward|front foot/])) {
+    return "For that style, should this bias legs and pressure, trunk rotation, or repeated high-output bursts?";
+  }
+
+  if (includesAny(focus, [/explosive|power|snap|punch harder|punching power|first step/])) {
+    return "Are we chasing punch snap, rotation through the hips and trunk, or first-step explosiveness?";
+  }
+
+  if (includesAny(focus, [/gas|gassing|engine|stamina|cardio|conditioning|fitter|fitness|tired|fatigue/])) {
+    return "Boxing fitness can mean a few things. Do you want repeat-burst conditioning, footwork engine, or a general full-body gas tank?";
+  }
+
+  if (includesAny(focus, [/weight loss|lose weight|fat loss|sweat|burn/])) {
+    return "Do you want this to feel like sweaty conditioning, strength work that burns, or a mix?";
+  }
+
+  if (includesAny(focus, [/mobility|loosen|recover|recovery|stretch|stiff/])) {
+    return "Are we trying to loosen the hips, shoulders, trunk, or just bring your whole body down a gear?";
+  }
+
+  if (includesAny(focus, [/core|abs|trunk|rotation|brace|oblique/])) {
+    return "Should this be more about trunk stiffness for taking shots, rotation for punching, or straight-up abs work?";
+  }
+
+  return "What are we trying to turn you into today: stronger, sharper, fitter, more explosive, or harder to break down?";
+}
+
+export function nextCoachQuestion(intake: WorkoutIntake, latestMessage = ""): CoachQuestionResult {
+  const missingLogistics: string[] = [];
+  const hasGoal = Boolean(intake.goal);
+  const hasTime = Boolean(intake.timeMinutes);
+  const hasEquipment = intake.equipment.length > 0;
+  const hasSafety = Boolean(intake.injuriesOrConstraints) || Boolean(intake.whatToAvoid);
+
+  if (!hasTime) missingLogistics.push("time");
+  if (!hasEquipment) missingLogistics.push("kit");
+
+  if (hasVagueInjuryMention(latestMessage, intake)) {
+    return {
+      mode: "safety_clarify",
+      questions: ["Quick check before I build it: what actually irritates it, squats/lunges, jumping/running, overhead work, rotation, or all of the above?"],
+    };
+  }
+
+  if (hasGoal && hasTime && hasEquipment) {
+    return { mode: "build_now", questions: [] };
+  }
+
+  const lower = latestMessage.toLowerCase();
+  const asksToBuild = /\b(build|create|make|generate|write|give me|do)\b/.test(lower);
+  const vibeLed = hasGoal || includesAny(lower, [/fitter|fitness|explosive|power|pressure|tyson|style|gas|engine|stamina|footwork|stronger|mobility|conditioning|sparring|boxing/]);
+
+  if (vibeLed && !asksToBuild) {
+    const logistics = missingLogistics.length ? `Also give me ${missingLogistics.join(" + ")}.` : null;
+    const safety = !hasSafety ? "If anything’s sore or off-limits, say that too." : null;
+    return {
+      mode: "shape_idea",
+      questions: [ideaQuestionFor(latestMessage, intake), [logistics, safety].filter(Boolean).join(" ")].filter(Boolean),
+    };
+  }
+
+  if (!hasGoal) {
+    return {
+      mode: "shape_idea",
+      questions: ["What are we training today? Give me the boxing problem or body area, plus time and kit."],
+    };
+  }
+
+  if (missingLogistics.length) {
+    return {
+      mode: "shape_idea",
+      questions: [
+        `${ideaQuestionFor(latestMessage, intake)}\n\nAlso give me ${missingLogistics.join(" + ")}.${!hasSafety ? " If anything’s sore, say that too." : ""}`,
+      ],
+    };
+  }
+
+  return { mode: "build_now", questions: [] };
+}
+
 export function missingIntakeQuestions(intake: WorkoutIntake) {
-  const missing: string[] = [];
-
-  if (!intake.goal) missing.push("what you want to train");
-  if (!intake.timeMinutes) missing.push("how long you have");
-  if (!intake.equipment.length) missing.push("what equipment you can use");
-  if (!intake.injuriesOrConstraints) missing.push("anything I should work around");
-
-  if (!intake.goal && missing.length < 3) {
-    return ["What are we training? Give me the target, time, kit, and anything to work around."];
-  }
-
-  if (missing.length) {
-    return [
-      `Give me ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? ", and " + missing[3] : ""}. Short answer is fine.`,
-    ];
-  }
-
-  if (!intake.preferredIntensity && !intake.recentTrainingOrFatigue) {
-    return ["Last check: should this be controlled, hard, or low-impact today?"];
-  }
-
-  return [];
+  return nextCoachQuestion(intake).questions;
 }
 
 export function applyWorkoutAssumptions(intake: WorkoutIntake): WorkoutIntake {
@@ -231,7 +313,8 @@ function targetProfileFor(intake: WorkoutIntake): TargetProfile {
   if (/\b(shoulders?|rotator|scap|overhead)\b/.test(focus)) add(["shoulders", "traps"], ["shoulder-health", "push", "pull"], ["shoulder-durability"]);
   if (/\b(chest|pecs?)\b/.test(focus)) add(["chest"], ["push"], ["general-athleticism"]);
   if (/\b(back|lats?|rows?|pull)\b/.test(focus)) add(["lats", "middle back", "lower back"], ["pull", "hinge"], ["shoulder-durability"]);
-  if (/\b(arms?|biceps?|triceps?)\b/.test(focus)) add(["biceps", "triceps"], ["push", "pull"], ["general-athleticism"]);
+  if (/\b(arms?|biceps?)\b/.test(focus)) add(["biceps", "triceps"], ["push", "pull"], ["general-athleticism"]);
+  if (/\btriceps?\b/.test(focus)) add(["triceps"], ["push", "shoulder-health"], ["shoulder-durability", "repeat-efforts", "punch-transfer"]);
 
   return {
     muscles: [...muscles],
@@ -264,6 +347,11 @@ function searchConfigFor(intake: WorkoutIntake) {
     config.boxingQualities.push("gas-tank", "repeat-efforts");
     config.movementPatterns.push("elastic-conditioning", "core");
   }
+  if (/pressure|tyson|inside fighter|come forward|front foot|walk down/.test(focus)) {
+    config.boxingQualities.push("legs", "trunk", "repeat-efforts", "punch-transfer");
+    config.movementPatterns.push("squat", "lunge", "single-leg", "anti-rotation", "rotation", "elastic-conditioning");
+    config.muscles.push("quadriceps", "glutes", "hamstrings", "abdominals");
+  }
   if (/power|punch|explosive|snap|rotation/.test(focus)) {
     config.boxingQualities.push("power", "punch-transfer", "trunk");
     config.movementPatterns.push("rotation", "anti-rotation", "hinge", "squat");
@@ -278,6 +366,11 @@ function searchConfigFor(intake: WorkoutIntake) {
     config.boxingQualities.push("shoulder-durability");
     config.movementPatterns.push("shoulder-health", "pull", "push");
     config.muscles.push("shoulders", "traps", "lats");
+  }
+  if (/triceps?/.test(focus)) {
+    config.boxingQualities.push("shoulder-durability", "repeat-efforts", "punch-transfer");
+    config.movementPatterns.push("push", "shoulder-health");
+    config.muscles.push("triceps");
   }
   if (/\b(ab+s?|abs|abdominals?|six[ -]?pack|core|trunk|brace|bracing|obliques?)\b/.test(focus)) {
     config.boxingQualities.push("trunk", "punch-transfer");
@@ -304,9 +397,11 @@ function searchTermsFor(intake: WorkoutIntake) {
 
   if (focus.includes("glute") || focus.includes("hip")) terms.push("glute", "hip", "bridge", "lunge", "squat", "thrust");
   if (focus.includes("shoulder")) terms.push("shoulder", "external rotation", "press");
+  if (/triceps?/.test(focus)) terms.push("triceps", "skull crusher", "extension", "pushdown", "pressdown");
   if (focus.includes("footwork") || focus.includes("legs")) terms.push("calf", "step", "jump");
   if (focus.includes("power") || focus.includes("punch")) terms.push("medicine ball", "rotation", "press", "jump", "squat");
   if (focus.includes("engine") || focus.includes("gas") || focus.includes("conditioning")) terms.push("burpee", "mountain climber", "jumping jack");
+  if (/pressure|tyson|inside fighter|come forward|front foot|walk down/.test(focus)) terms.push("squat", "lunge", "split squat", "rotation", "pallof", "mountain climber");
   if (/\b(ab+s?|abs|abdominals?|six[ -]?pack|core|trunk|brace|bracing|obliques?|rotation)\b/.test(focus)) terms.push("plank", "crunch", "leg raise", "knee raise", "dead bug", "hollow", "twist", "woodchop", "pallof", "ab");
 
   const avoidTerms = avoidTermsFor(intake);
@@ -979,7 +1074,7 @@ export async function saveWorkoutForUser(userId: string, intake: WorkoutIntake, 
       duration_minutes: workout.durationMinutes,
       difficulty: workout.difficulty,
       equipment: workout.equipment,
-      visibility: "private",
+      visibility: "community",
       intake_summary: JSON.stringify(intake),
       ai_model: workoutModel(),
     })

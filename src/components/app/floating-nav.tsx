@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 export type FloatingNavUser = {
   avatarUrl?: string | null;
+  firstName?: string | null;
+  displayName?: string | null;
 };
 
 type NavItem = {
@@ -39,12 +41,19 @@ function TeamIcon(active: boolean) {
   );
 }
 
-function ProfileIcon(active: boolean) {
-  return (
-    <svg aria-hidden="true" className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none">
-      <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM5.5 20a6.5 6.5 0 0 1 13 0" stroke="currentColor" strokeWidth={active ? "2.2" : "1.8"} strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+function ProfileAvatar({ user }: { user?: FloatingNavUser }) {
+  const initial = (user?.firstName || user?.displayName || "M").trim().charAt(0).toUpperCase() || "M";
+
+  if (user?.avatarUrl) {
+    return (
+      <span className="block h-6 w-6 overflow-hidden rounded-full bg-slate-100">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
+      </span>
+    );
+  }
+
+  return <span className="grid h-6 w-6 place-items-center rounded-full bg-slate-200 text-xs font-bold text-slate-700">{initial}</span>;
 }
 
 function PlusIcon() {
@@ -59,16 +68,33 @@ const navItems: NavItem[] = [
   { href: "/app", label: "Home", icon: HomeIcon, exact: true },
   { href: "/app/workouts", label: "Plans", icon: PlansIcon },
   { href: "/app/community", label: "Team", icon: TeamIcon },
-  { href: "/app/profile", label: "Profile", icon: ProfileIcon },
+  { href: "/app/profile", label: "Profile", icon: () => null },
 ];
 
-export function FloatingNav({ user, contained = false }: { user?: FloatingNavUser; contained?: boolean }) {
+export function FloatingNav({ user, contained = false, position = "bottom" }: { user?: FloatingNavUser; contained?: boolean; position?: "top" | "bottom" | "left" }) {
   const pathname = usePathname();
+  const [chooserOpen, setChooserOpen] = useState(false);
+  const chooserRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (!chooserRef.current?.contains(event.target as Node)) setChooserOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setChooserOpen(false);
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
 
   return (
-    <nav aria-label="Primary" className={`${contained ? "absolute" : "fixed"} inset-x-0 bottom-4 z-50 flex justify-center px-2`}>
-      <div className="flex max-w-full items-center gap-1.5">
-        <div className="flex min-w-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white/95 p-1.5 shadow-[0_18px_60px_rgba(15,23,42,0.16)] backdrop-blur">
+    <nav aria-label="Primary" className={`${contained ? "absolute" : "fixed"} z-50 flex px-2 ${position === "left" ? "left-6 top-1/2 -translate-y-1/2" : `inset-x-0 justify-center ${position === "top" ? "top-4" : "bottom-4"}`}`}>
+      <div className={`flex max-w-full gap-1.5 ${position === "left" ? "flex-col items-center" : "items-center"}`}>
+        <div className={`flex min-w-0 gap-1.5 rounded-full border border-slate-200 bg-white/95 p-1.5 shadow-[0_18px_60px_rgba(15,23,42,0.16)] backdrop-blur ${position === "left" ? "flex-col items-center" : "items-center"}`}>
           {navItems.map((item) => {
             const active = item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
@@ -77,29 +103,40 @@ export function FloatingNav({ user, contained = false }: { user?: FloatingNavUse
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 aria-label={item.label}
-                className={`grid h-11 w-[3.75rem] place-items-center content-center rounded-full px-1 pb-0.5 text-[8.5px] font-semibold transition min-[390px]:w-16 min-[390px]:text-[9px] sm:h-12 sm:w-[4.6rem] sm:text-[10px] ${
+                className={`grid place-items-center content-center rounded-full px-1 pb-0.5 font-semibold transition ${position === "left" ? "h-[4.25rem] w-[4.25rem] text-[10px]" : "h-11 w-[3.75rem] text-[8.5px] min-[390px]:w-16 min-[390px]:text-[9px] sm:h-12 sm:w-[4.6rem] sm:text-[10px]"} ${
                   active ? "bg-slate-100 text-slate-950" : "text-slate-500 hover:bg-slate-50 hover:text-slate-950"
                 }`}
               >
-                {item.label === "Profile" && user?.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={user.avatarUrl} alt="" className="h-[18px] w-[18px] rounded-full object-cover" />
-                ) : (
-                  item.icon(active)
-                )}
-                <span className="mt-0.5 max-w-full truncate leading-none">{item.label}</span>
+                {item.label === "Profile" ? <ProfileAvatar user={user} /> : item.icon(active)}
+                {item.label === "Profile" ? null : <span className="mt-0.5 max-w-full truncate leading-none">{item.label}</span>}
               </Link>
             );
           })}
         </div>
 
-        <Link
-          href={{ pathname: "/app/create", query: { next: pathname } }}
-          aria-label="New plan"
-          className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-slate-900 bg-slate-950 text-white shadow-[0_18px_44px_rgba(15,23,42,0.32)] transition hover:bg-slate-800 min-[390px]:h-14 min-[390px]:w-14 sm:h-16 sm:w-16"
-        >
-          <PlusIcon />
-        </Link>
+        <div ref={chooserRef} className="relative">
+          {chooserOpen ? (
+            <div className={`absolute w-56 overflow-hidden rounded-3xl border border-slate-200 bg-white p-2 text-sm font-semibold text-slate-800 shadow-[0_24px_70px_rgba(15,23,42,0.22)] ${position === "left" ? "left-[calc(100%+0.75rem)] top-0" : `right-0 ${position === "top" ? "top-[calc(100%+0.75rem)]" : "bottom-[calc(100%+0.75rem)]"}`}`}>
+              <p className="px-3 pb-2 pt-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">New workout</p>
+              <Link href={{ pathname: "/app/create/manual", query: { next: pathname } }} onClick={() => setChooserOpen(false)} className="block rounded-2xl px-3 py-3 transition hover:bg-slate-100">
+                Choose exercises
+              </Link>
+              <Link href={{ pathname: "/app/create", query: { next: pathname } }} onClick={() => setChooserOpen(false)} className="block rounded-2xl px-3 py-3 transition hover:bg-slate-100">
+                Describe a workout
+              </Link>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            aria-label="New plan"
+            aria-haspopup="menu"
+            aria-expanded={chooserOpen}
+            onClick={() => setChooserOpen((open) => !open)}
+            className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#007aff] text-white shadow-[0_18px_44px_rgba(0,122,255,0.32)] transition hover:bg-[#2f96ff] min-[390px]:h-14 min-[390px]:w-14 sm:h-16 sm:w-16"
+          >
+            <PlusIcon />
+          </button>
+        </div>
       </div>
     </nav>
   );

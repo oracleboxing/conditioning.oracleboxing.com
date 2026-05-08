@@ -57,6 +57,8 @@ type SupabaseWorkoutRow = {
   visibility: WorkoutVisibility | null;
   intake_summary: string | null;
   created_at: string | null;
+  user_id: string | null;
+  ai_model: string | null;
   workout_items: SupabaseWorkoutItemRow[] | null;
 };
 
@@ -97,7 +99,11 @@ export type WorkoutLookupResult =
 export type SavedWorkoutSummary = Pick<
   WorkoutDisplay,
   "id" | "title" | "goal" | "durationMinutes" | "difficulty" | "equipment" | "visibility" | "createdAt"
->;
+> & {
+  imageUrl: string | null;
+  chatSessionId: string | null;
+  sharedSourceWorkoutId: string | null;
+};
 
 export type SavedWorkoutsResult = {
   workouts: SavedWorkoutSummary[];
@@ -199,7 +205,12 @@ function toSections(items: WorkoutItem[]): WorkoutSection[] {
   });
 }
 
-function mapWorkout(row: SupabaseWorkoutRow, chatSessionId: string | null = null): WorkoutDisplay {
+function sharedSourceWorkoutId(row: Pick<SupabaseWorkoutRow, "ai_model">) {
+  const match = row.ai_model?.match(/^shared-workout-copy:([0-9a-f-]{32,36})$/i);
+  return match?.[1] ?? null;
+}
+
+function mapWorkout(row: SupabaseWorkoutRow, chatSessionId: string | null = null, currentUserId?: string, isSavedByCurrentUser = false): WorkoutDisplay {
   const items = (row.workout_items ?? []).map(toWorkoutItem);
 
   return {
@@ -211,13 +222,22 @@ function mapWorkout(row: SupabaseWorkoutRow, chatSessionId: string | null = null
     difficulty: row.difficulty,
     equipment: row.equipment ?? [],
     visibility: row.visibility ?? "private",
+    isOwnWorkout: Boolean(currentUserId && row.user_id === currentUserId),
+    isSavedByCurrentUser,
+    sharedSourceWorkoutId: sharedSourceWorkoutId(row),
     intakeSummary: row.intake_summary,
     createdAt: row.created_at,
     sections: toSections(items),
   };
 }
 
-function mapSummary(row: Omit<SupabaseWorkoutRow, "workout_items">): SavedWorkoutSummary {
+function summaryImageUrl(row: Pick<SupabaseWorkoutRow, "workout_items">) {
+  const items = (row.workout_items ?? []).map(toWorkoutItem).sort((a, b) => a.orderIndex - b.orderIndex);
+  const preferred = items.find((item) => ["strength", "main", "conditioning"].includes(item.blockType) && item.exercise.imageUrl) ?? items.find((item) => item.exercise.imageUrl);
+  return preferred?.exercise.imageUrl ?? null;
+}
+
+function mapSummary(row: Pick<SupabaseWorkoutRow, "id" | "title" | "goal" | "duration_minutes" | "difficulty" | "equipment" | "visibility" | "created_at" | "ai_model" | "workout_items">, chatSessionId: string | null = null): SavedWorkoutSummary {
   return {
     id: row.id,
     title: row.title,
@@ -227,6 +247,9 @@ function mapSummary(row: Omit<SupabaseWorkoutRow, "workout_items">): SavedWorkou
     equipment: row.equipment ?? [],
     visibility: row.visibility ?? "private",
     createdAt: row.created_at,
+    imageUrl: summaryImageUrl(row),
+    chatSessionId,
+    sharedSourceWorkoutId: sharedSourceWorkoutId(row),
   };
 }
 
@@ -246,7 +269,7 @@ export async function getWorkoutById(id: string): Promise<WorkoutLookupResult> {
     let query = supabase
       .from("workouts")
       .select(
-        `id,title,goal,duration_minutes,difficulty,equipment,visibility,intake_summary,created_at,
+        `id,title,goal,duration_minutes,difficulty,equipment,visibility,intake_summary,created_at,user_id,ai_model,
         workout_items(id,order_index,block_type,block_title,sets,reps,duration_seconds,rest_seconds,tempo,coaching_note,
           exercises(id,title,category,equipment_tags,instructions_json,structure_json,image_urls))`,
       )
@@ -263,7 +286,9 @@ export async function getWorkoutById(id: string): Promise<WorkoutLookupResult> {
 
     if (!data) return { status: "not-found" };
 
+    const workoutRow = data as unknown as SupabaseWorkoutRow;
     let chatSessionId: string | null = null;
+    let isSavedByCurrentUser = false;
 
     if (user) {
       const { data: sessionData } = await supabase
@@ -277,9 +302,20 @@ export async function getWorkoutById(id: string): Promise<WorkoutLookupResult> {
 
       const session = sessionData as { id?: string } | null;
       chatSessionId = typeof session?.id === "string" ? session.id : null;
+
+      if (workoutRow.user_id !== user.id && workoutRow.visibility === "community") {
+        const { data: savedCopy } = await supabase
+          .from("workouts")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("ai_model", `shared-workout-copy:${id}`)
+          .maybeSingle();
+        const savedCopyRow = savedCopy as { id?: string } | null;
+        isSavedByCurrentUser = Boolean(savedCopyRow?.id);
+      }
     }
 
-    return { status: "ready", workout: mapWorkout(data as unknown as SupabaseWorkoutRow, chatSessionId), source: "supabase" };
+    return { status: "ready", workout: mapWorkout(workoutRow, chatSessionId, user?.id, isSavedByCurrentUser), source: "supabase" };
   } catch (error) {
     throw error;
   }
@@ -293,7 +329,9 @@ export async function getSavedWorkouts(userId?: string): Promise<SavedWorkoutsRe
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("workouts")
-      .select("id,title,goal,duration_minutes,difficulty,equipment,visibility,created_at")
+      .select(`id,title,goal,duration_minutes,difficulty,equipment,visibility,created_at,ai_model,
+        workout_items(id,order_index,block_type,block_title,sets,reps,duration_seconds,rest_seconds,tempo,coaching_note,
+          exercises(id,title,category,equipment_tags,instructions_json,structure_json,image_urls))`)
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(12);
@@ -302,7 +340,24 @@ export async function getSavedWorkouts(userId?: string): Promise<SavedWorkoutsRe
       throw new Error(error.message);
     }
 
-    const workouts = (data ?? []).map((row) => mapSummary(row as unknown as Omit<SupabaseWorkoutRow, "workout_items">));
+    const rows = (data ?? []) as unknown as SupabaseWorkoutRow[];
+    const workoutIds = rows.map((row) => row.id);
+    const chatSessionByWorkout = new Map<string, string>();
+
+    if (workoutIds.length) {
+      const { data: sessions } = await supabase
+        .from("workout_chat_sessions")
+        .select("id,workout_id,updated_at")
+        .eq("user_id", userId)
+        .in("workout_id", workoutIds)
+        .order("updated_at", { ascending: false });
+
+      for (const session of (sessions ?? []) as Array<{ id: string; workout_id: string | null }>) {
+        if (session.workout_id && !chatSessionByWorkout.has(session.workout_id)) chatSessionByWorkout.set(session.workout_id, session.id);
+      }
+    }
+
+    const workouts = rows.map((row) => mapSummary(row, chatSessionByWorkout.get(row.id) ?? null));
 
     return { workouts, source: "supabase" };
   } catch (error) {

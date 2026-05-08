@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { titleFromIntake } from "@/lib/ai/chat-history";
 import { planPreviewFromGeneratedWorkout } from "@/components/plans/plan-preview-adapters";
@@ -77,7 +77,7 @@ function PromptBar({
   loading,
   onInput,
   onSubmit,
-  placeholder = "Describe the strength and conditioning session you have in mind",
+  placeholder = "Describe your workout",
 }: {
   input: string;
   loading: boolean;
@@ -86,7 +86,7 @@ function PromptBar({
   placeholder?: string;
 }) {
   return (
-    <form onSubmit={onSubmit} className="w-full max-w-3xl rounded-full border border-zinc-200 bg-white px-3 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-colors focus-within:border-black">
+    <form onSubmit={onSubmit} className="box-border w-full max-w-3xl rounded-full border border-zinc-200 bg-white px-3 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-colors focus-within:border-black">
       <div className="flex items-center gap-3">
         <input
           value={input}
@@ -120,19 +120,18 @@ function DebugPanel({
   return (
     <details className="rounded-2xl border border-zinc-200 bg-zinc-50/80 px-4 py-3 text-xs text-zinc-600">
       <summary className="cursor-pointer select-none font-semibold text-zinc-700">Debug state</summary>
-      <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-white p-3 text-[11px] leading-5 text-zinc-700">
+      <pre className="scrollbar-none mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-white p-3 text-[11px] leading-5 text-zinc-700">
         {JSON.stringify({ sessionId, persistence, warnings, status, intake, events }, null, 2)}
       </pre>
     </details>
   );
 }
 
-function CreateWorkoutThread({ initialSessionId, showDebug, nextPath }: { initialSessionId: string | null; showDebug: boolean; nextPath: string | null }) {
-  const router = useRouter();
-  const [sessionId, setSessionId] = useState<string | null>(null);
+function CreateWorkoutThread({ initialSessionId, initialPrompt, showDebug, nextPath }: { initialSessionId: string | null; initialPrompt: string | null; showDebug: boolean; nextPath: string | null }) {
+  const [sessionId, setSessionId] = useState<string | null>(initialSessionId);
   const [messages, setMessages] = useState<WorkoutChatMessage[]>([]);
   const [userName, setUserName] = useState("there");
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initialPrompt ?? "");
   const [intake, setIntake] = useState<WorkoutIntake | null>(null);
   const [workout, setWorkout] = useState<GeneratedWorkout | null>(null);
   const [persistence, setPersistence] = useState<WorkoutPersistence | null>(null);
@@ -306,8 +305,7 @@ function CreateWorkoutThread({ initialSessionId, showDebug, nextPath }: { initia
 
     if (streamedSessionId && initialSessionId !== streamedSessionId) {
       const nextQuery = nextPath ? `&next=${encodeURIComponent(nextPath)}` : "";
-      router.replace(`/app/create?sessionId=${streamedSessionId}${nextQuery}`, { scroll: false });
-      router.refresh();
+      window.history.replaceState(null, "", `/app/create?sessionId=${streamedSessionId}${nextQuery}`);
     }
   }
 
@@ -349,9 +347,9 @@ function CreateWorkoutThread({ initialSessionId, showDebug, nextPath }: { initia
 
   return (
     <main className="flex h-full min-h-0 flex-col bg-white text-black">
-      <div className="z-40 flex shrink-0 items-center justify-between bg-transparent px-4 pb-3 pt-1">
+      <div className="z-40 flex shrink-0 items-center justify-between bg-transparent px-4 pb-2 pt-1">
         <Link href={backTarget.href} className="rounded-full border border-zinc-200 bg-white/85 px-3 py-2 text-sm font-semibold text-zinc-600 shadow-sm backdrop-blur transition hover:text-black">
-          ← Back to {backTarget.label}
+          ← Back
         </Link>
       </div>
       {sessionHydrating ? (
@@ -364,7 +362,7 @@ function CreateWorkoutThread({ initialSessionId, showDebug, nextPath }: { initia
         <section className="mx-auto flex min-h-0 flex-1 w-full max-w-5xl flex-col items-center justify-center px-4 pb-28">
           <div className="w-full max-w-3xl -translate-y-10 text-center sm:-translate-y-14">
             <h1 className="text-[22px] font-medium tracking-[-0.02em] text-black sm:text-3xl">
-              Hey, {userName}. What would you like to train?
+              Hey, {userName}. What are we building today?
             </h1>
             <div className="mt-7">
               <PromptBar input={input} loading={loading} onInput={setInput} onSubmit={handleSubmit} />
@@ -373,20 +371,20 @@ function CreateWorkoutThread({ initialSessionId, showDebug, nextPath }: { initia
           </div>
         </section>
       ) : (
-        <section className={`relative grid min-h-0 flex-1 w-full gap-5 px-0 sm:px-4 lg:pl-4 lg:pr-2 ${workout ? "sm:grid-cols-[minmax(220px,0.78fr)_minmax(300px,1fr)] md:grid-cols-[minmax(280px,0.85fr)_minmax(340px,1fr)] xl:grid-cols-[minmax(360px,0.75fr)_minmax(520px,1fr)] 2xl:grid-cols-[minmax(440px,0.72fr)_minmax(720px,1fr)]" : "mx-auto max-w-4xl grid-cols-1"}`}>
-          <div className="relative flex min-h-0 min-w-0 flex-col">
-            <div ref={scrollRef} className={`min-h-0 flex-1 overflow-y-auto ${workout && mobileWorkoutOpen ? "px-4 pb-6 pt-6 sm:hidden" : "space-y-6 px-4 pb-8 pt-16 sm:px-4 sm:pb-10 sm:pt-8 lg:px-2 xl:px-4"}`}>
+        <section className="relative grid min-h-0 flex-1 w-full max-w-full grid-cols-1 overflow-hidden gap-5 px-0">
+          <div className="relative flex min-h-0 min-w-0 max-w-full flex-col overflow-hidden">
+            <div ref={scrollRef} className={`scrollbar-none min-h-0 max-w-full flex-1 overflow-y-auto overflow-x-hidden ${workout && mobileWorkoutOpen ? "px-4 pb-5 pt-4" : "space-y-6 px-4 pb-5 pt-8"}`}> 
             {workout && mobileWorkoutOpen ? (
               <PlanPreview plan={planPreviewFromGeneratedWorkout(workout)} />
             ) : messages.map((message, index) => (
-              <div key={`${message.role}-${index}`} className={message.role === "user" ? "flex justify-end" : "flex justify-start"}>
+              <div key={`${message.role}-${index}`} className={message.role === "user" ? "flex w-full min-w-0 justify-end" : "flex w-full min-w-0 justify-start"}>
                 {message.role === "user" ? (
-                  <div className="max-w-[82%] rounded-2xl bg-zinc-100 px-4 py-2 text-sm leading-6 text-black lg:max-w-xl">
+                  <div className="max-w-[82%] break-words rounded-2xl bg-zinc-100 px-4 py-2 text-sm leading-6 text-black">
                     {message.content}
                   </div>
                 ) : (
-                  <div className="max-w-[92%] text-left lg:max-w-2xl">
-                    <div className="whitespace-pre-wrap text-sm font-medium leading-7 text-black">{message.content}</div>
+                  <div className="max-w-[92%] min-w-0 text-left">
+                    <div className="whitespace-pre-wrap break-words text-sm font-medium leading-7 text-black">{message.content}</div>
                   </div>
                 )}
               </div>
@@ -401,30 +399,29 @@ function CreateWorkoutThread({ initialSessionId, showDebug, nextPath }: { initia
             {(!mobileWorkoutOpen || !workout) && error && <p className="max-w-3xl rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
             </div>
 
-            <div className="z-30 mx-auto w-full max-w-2xl shrink-0 space-y-3 bg-transparent px-4 pb-2 pt-3 sm:px-0">
+            <div className="z-30 mx-auto box-border w-full max-w-full shrink-0 space-y-3 overflow-hidden bg-white/95 px-4 pb-5 pt-3 backdrop-blur">
               {workout ? (
-                <div className="flex justify-end sm:hidden">
+                <div className="flex justify-end">
                   <button
                     type="button"
                     onClick={() => setMobileWorkoutOpen((open) => !open)}
                     className="rounded-full bg-[#007aff] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(0,122,255,0.28)] transition hover:bg-[#2f96ff]"
                   >
-                    {mobileWorkoutOpen ? "Back to Chat" : "Preview Plan"}
+                    {mobileWorkoutOpen ? "Edit with Chat" : "Preview Plan"}
                   </button>
                 </div>
               ) : null}
               {showDebug ? <DebugPanel sessionId={sessionId} intake={intake} persistence={persistence} warnings={warnings} status={status} events={debugEvents} /> : null}
-              <PromptBar input={input} loading={loading} onInput={setInput} onSubmit={handleSubmit} />
+              <PromptBar
+                input={input}
+                loading={loading}
+                onInput={setInput}
+                onSubmit={handleSubmit}
+                placeholder={workout ? "Tell me what to change: harder, shorter, different kit..." : undefined}
+              />
             </div>
           </div>
 
-          {workout ? (
-            <aside className="hidden max-h-[calc(100vh-5rem)] overflow-y-auto py-4 pr-0 sm:block">
-              <div className="ml-auto w-full max-w-none">
-                <PlanPreview plan={planPreviewFromGeneratedWorkout(workout)} />
-              </div>
-            </aside>
-          ) : null}
         </section>
       )}
     </main>
@@ -435,8 +432,9 @@ function CreateWorkoutThread({ initialSessionId, showDebug, nextPath }: { initia
 export default function CreateWorkoutPage() {
   const searchParams = useSearchParams();
   const activeSessionId = searchParams.get("sessionId");
+  const initialPrompt = searchParams.get("prompt");
   const showDebug = searchParams.get("debug") === "1";
   const nextPath = searchParams.get("next");
 
-  return <CreateWorkoutThread initialSessionId={activeSessionId} showDebug={showDebug} nextPath={nextPath} />;
+  return <CreateWorkoutThread initialSessionId={activeSessionId} initialPrompt={initialPrompt} showDebug={showDebug} nextPath={nextPath} />;
 }

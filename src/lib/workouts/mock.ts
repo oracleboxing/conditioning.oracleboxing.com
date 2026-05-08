@@ -13,6 +13,9 @@ export const mockWorkout: WorkoutDisplay = {
   difficulty: "Intermediate",
   equipment: ["Dumbbells", "Resistance band", "Skipping rope", "Bodyweight"],
   visibility: "private",
+  isOwnWorkout: true,
+  isSavedByCurrentUser: false,
+  sharedSourceWorkoutId: null,
   intakeSummary:
     "Generated from an intake asking for boxing-specific conditioning, shoulder resilience, explosive legs and enough core work to keep shape under fatigue.",
   createdAt: new Date("2026-05-05T06:00:00.000Z").toISOString(),

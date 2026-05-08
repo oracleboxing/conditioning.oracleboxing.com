@@ -83,6 +83,7 @@ Rules:
 - Do not list the full workout yet.
 - Confirm the useful coaching picture in plain language: goal, time, kit/environment, intensity or bias, and any constraints.
 - Say what you are about to build, for example warm-up, main strength or power work, conditioning/core, cooldown.
+- Tell them this will be saved as a first draft and they can ask for changes like harder, shorter, different kit, fewer exercises, more strength, or more conditioning.
 - Do not ask a question here. If a question is needed, the chat route will stop before workout generation.
 - Do not say "before I write/build/generate it" unless generation is actually being stopped. In this step, state the plan and continue.`,
     },
@@ -134,6 +135,7 @@ Hard rules:
 - Avoid rejectedExerciseIds unless no safe alternative exists.
 - Diversify patterns rather than returning the same obvious exercises every time.
 - If the user gives a target body area, retrieval and selection must primarily serve that target. Do not broaden a targeted request into a generic full-body circuit unless the user asks for full body.
+- For targeted muscle requests, choose direct target-muscle exercises for the main work first. Use broader compound exercises only as secondary support, not as the majority of the workout.
 - For abs/core/trunk requests, the main work must use exercises whose muscles or movement patterns directly match the target area, such as abdominals, core, anti-extension, anti-rotation, rotation, or obliques.
 
 Structure rules:

@@ -46,3 +46,31 @@ select:-webkit-autofill {
   box-shadow: 0 0 0 1000px #ffffff inset;
   caret-color: #111827;
 }
+
+.iphone-scroll-area {
+  -ms-overflow-style: auto;
+  scrollbar-color: rgba(15, 23, 42, 0.18) transparent;
+  scrollbar-width: thin;
+}
+
+.iphone-scroll-area::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+
+.iphone-scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.iphone-scroll-area::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.18);
+  border-radius: 9999px;
+}
+
+.workout-card-action-slot:has([aria-expanded="true"]) {
+  z-index: 5000 !important;
+}
+
+article:has(.workout-card-action-slot [aria-expanded="true"]) {
+  z-index: 5000;
+}

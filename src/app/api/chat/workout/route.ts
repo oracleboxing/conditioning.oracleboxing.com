@@ -14,7 +14,7 @@ import {
   editWorkoutWithInstruction,
   generateWorkout,
   loadGeneratedWorkoutForUser,
-  missingIntakeQuestions,
+  nextCoachQuestion,
   saveWorkoutForUser,
   streamWorkoutAssumptions,
   swapWorkoutExercise,
@@ -94,7 +94,7 @@ function hasExplicitPreGenerationHold(message: string) {
   return (beforeBuild && wantsCheck) || dontUntil || askBefore;
 }
 
-function preGenerationHoldQuestion(intake: WorkoutIntake, missingQuestions: string[]) {
+function preGenerationHoldQuestion(intake: WorkoutIntake, missingQuestions: string[], latestMessage = "") {
   if (missingQuestions.length) return questionMessage(missingQuestions);
 
   if (!intake.preferredIntensity && !intake.recentTrainingOrFatigue) {
@@ -105,7 +105,8 @@ function preGenerationHoldQuestion(intake: WorkoutIntake, missingQuestions: stri
     return "Before I write it, anything you want me to avoid? Short answer is fine.";
   }
 
-  return "Before I write it, confirm you’re happy for me to build it from that info.";
+  const focus = latestMessage.trim() ? ` from “${latestMessage.trim().slice(0, 120)}”` : " from that info";
+  return `Before I write it, confirm you’re happy for me to build it${focus}.`;
 }
 
 function latestUserMessage(messages: WorkoutChatMessage[]) {
@@ -233,7 +234,7 @@ export async function POST(request: NextRequest) {
     const chatWarnings: string[] = [];
 
     if (!userMessage && mode === "chat") {
-      const questions = ["What do you want to train today? Give me the target, time, equipment, and anything to work around."];
+      const questions = ["What are we building today? Give me the boxing problem, time, kit, and anything sore or off-limits."];
       const message = questionMessage(questions);
       await streamAssistantMessage(send, message);
       send({ type: "question", message: "", questions });
@@ -306,14 +307,15 @@ export async function POST(request: NextRequest) {
     }
 
     const extracted = await extractIntake(messages, body.intake);
-    const questions = missingIntakeQuestions(extracted);
+    const coachQuestion = nextCoachQuestion(extracted, userMessage?.content ?? "");
+    const questions = coachQuestion.questions;
     const shouldHoldBeforeGenerating = userMessage ? hasExplicitPreGenerationHold(userMessage.content) : false;
 
     if (questions.length || shouldHoldBeforeGenerating) {
-      const assistantMessage = shouldHoldBeforeGenerating ? preGenerationHoldQuestion(extracted, questions) : questionMessage(questions);
+      const assistantMessage = shouldHoldBeforeGenerating ? preGenerationHoldQuestion(extracted, questions, userMessage?.content ?? "") : questionMessage(questions);
       if (sessionId) {
         const title = titleFromIntake(extracted, userMessage?.content ?? "Workout chat");
-        const assistantPersistWarning = await persistChatMessage(supabase, user.id, sessionId, { role: "assistant", content: assistantMessage }, { type: "question" });
+        const assistantPersistWarning = await persistChatMessage(supabase, user.id, sessionId, { role: "assistant", content: assistantMessage }, { type: "question", mode: coachQuestion.mode });
         const updateWarning = await updateChatSession(supabase, user.id, sessionId, { intake: extracted, title, status: "active" });
         if (assistantPersistWarning) chatWarnings.push(assistantPersistWarning);
         if (updateWarning) chatWarnings.push(updateWarning);

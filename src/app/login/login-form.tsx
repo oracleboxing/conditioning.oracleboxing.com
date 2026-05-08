@@ -14,21 +14,20 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="group relative w-full overflow-hidden rounded-2xl bg-[#007aff] px-4 py-4 text-sm font-semibold uppercase tracking-[0.12em] text-white shadow-sm transition hover:bg-[#2f96ff] disabled:cursor-wait disabled:bg-[#1f5f9f]"
+      className="w-full rounded-full bg-[#007aff] px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-[#2f96ff] disabled:cursor-wait disabled:opacity-70"
     >
-      <span className="relative z-10">{pending ? "Sending secure link" : "Send magic link"}</span>
-      <span className="absolute inset-y-0 left-0 w-1/3 -translate-x-full bg-white/20 blur-xl transition group-hover:translate-x-[350%]" />
+      {pending ? "Sending link..." : "Send magic link"}
     </button>
   );
 }
 
 export function LoginForm({ next }: LoginFormProps) {
   return (
-    <form action={signInWithEmail} className="mt-8 space-y-5">
+    <form action={signInWithEmail} className="mx-auto mt-8 w-full max-w-xs space-y-4">
       <input type="hidden" name="next" value={next} />
       <div>
-        <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" htmlFor="email">
-          Member email
+        <label className="block text-sm font-medium text-slate-700" htmlFor="email">
+          Email
         </label>
         <input
           id="email"
@@ -37,7 +36,7 @@ export function LoginForm({ next }: LoginFormProps) {
           required
           autoComplete="email"
           placeholder="you@example.com"
-          className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base text-slate-950 outline-none ring-[#007aff] transition placeholder:text-slate-500 focus:border-[#007aff] focus:ring-2"
+          className="mt-2 w-full rounded-full border border-slate-200 bg-white px-4 py-3.5 text-base text-slate-950 outline-none ring-[#007aff] transition placeholder:text-slate-400 focus:border-[#007aff] focus:ring-2"
         />
       </div>
       <SubmitButton />

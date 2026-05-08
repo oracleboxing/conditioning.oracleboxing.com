@@ -44,6 +44,9 @@ export type WorkoutDisplay = {
   difficulty: string | null;
   equipment: string[];
   visibility: WorkoutVisibility;
+  isOwnWorkout: boolean;
+  isSavedByCurrentUser: boolean;
+  sharedSourceWorkoutId: string | null;
   intakeSummary: string | null;
   createdAt: string | null;
   sections: WorkoutSection[];

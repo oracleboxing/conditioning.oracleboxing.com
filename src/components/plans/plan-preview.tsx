@@ -34,9 +34,9 @@ function PlanExerciseCard({ item }: { item: PlanPreviewItem }) {
     <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
       <ExerciseImage item={item} />
       <div className="p-4 sm:p-5">
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start">
-          <h3 className="text-lg font-semibold tracking-tight text-black sm:text-xl">{item.name}</h3>
-          <p className="text-left text-base font-semibold leading-6 text-black sm:max-w-xs sm:text-right sm:text-lg">{item.prescription}</p>
+        <div>
+          <h3 className="text-xl font-semibold leading-6 tracking-tight text-black sm:text-2xl">{item.name}</h3>
+          <p className="mt-2 text-base font-semibold leading-6 text-zinc-700">{item.prescription}</p>
         </div>
         {item.instructions.length ? (
           <details className="group mt-3">

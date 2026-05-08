@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { hasPremiumAccess } from "@/lib/auth/access";
@@ -23,10 +24,9 @@ function safeNext(value?: string) {
 function Notice({ state, message, email }: { state?: string; message?: string; email?: string }) {
   if (state === "sent") {
     return (
-      <div className="mt-6 rounded-2xl border border-[#007aff]/30 bg-[#007aff]/10 p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#007aff]">Magic link sent</p>
-        <p className="mt-2 text-sm leading-6 text-slate-700">
-          Check {email ? <span className="font-bold text-slate-950">{email}</span> : "your inbox"}. The link signs you in and sends you straight to the app.
+      <div className="mx-auto mt-6 max-w-xs rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-center">
+        <p className="text-sm leading-6 text-slate-600">
+          Magic link sent to {email ? <span className="font-semibold text-slate-950">{email}</span> : "your inbox"}.
         </p>
       </div>
     );
@@ -93,42 +93,16 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   }
 
   return (
-    <main className="min-h-screen overflow-hidden bg-white px-5 py-8 text-slate-950 sm:px-8">
-      <section className="relative z-10 mx-auto grid min-h-[calc(100vh-4rem)] max-w-none items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-        <div className="hidden lg:block">
-          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#007aff]">Oracle Performance Lab</p>
-          <h1 className="mt-5 max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl">
-            Built for boxers who train like the engine matters.
-          </h1>
-          <div className="mt-8 grid max-w-xl gap-3 sm:grid-cols-3">
-            {["Private MVP", "Magic link", "Premium only"].map((label) => (
-              <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">Access</p>
-                <p className="mt-2 text-lg font-semibold text-slate-950">{label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+    <main className="flex min-h-screen items-center justify-center bg-zinc-100 px-4 py-8 text-slate-950">
+      <section className="w-full max-w-sm rounded-[2rem] border border-zinc-200 bg-white px-6 py-8 shadow-[0_24px_80px_rgba(15,23,42,0.10)]">
+        <Link href="/" aria-label="Oracle Conditioning home" className="mx-auto block w-fit">
+          <Image src="https://sb.oracleboxing.com/logo/long_dark.webp" alt="Oracle Boxing" width={240} height={54} priority unoptimized className="h-auto w-52" />
+        </Link>
+        <h1 className="mt-10 text-center text-2xl font-semibold tracking-tight">Sign in</h1>
+        <p className="mx-auto mt-3 max-w-xs text-center text-sm leading-6 text-slate-500">Enter your email and we&apos;ll send you a magic link.</p>
 
-        <div className="w-full rounded-2xl border border-slate-200 bg-white p-6 shadow-sm backdrop-blur sm:p-8">
-          <Link href="/" className="text-xs font-semibold uppercase tracking-[0.14em] text-[#7db7ff]">
-            Oracle Conditioning
-          </Link>
-          <h2 className="mt-6 text-3xl font-semibold tracking-tight sm:text-4xl">Sign in to the lab.</h2>
-          <p className="mt-4 text-sm leading-6 text-slate-500">
-            Use the email tied to your premium access. We&apos;ll send a secure Supabase magic link, no password circus.
-          </p>
-
-          <LoginForm next={next} />
-          <Notice state={params.state} message={params.message} email={params.email} />
-
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">After sign-in</p>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Allowed accounts go to <span className="font-mono text-slate-950">/app</span>. Everyone else sees the premium access screen and can sign out cleanly.
-            </p>
-          </div>
-        </div>
+        <LoginForm next={next} />
+        <Notice state={params.state} message={params.message} email={params.email} />
       </section>
     </main>
   );
