@@ -74,3 +74,11 @@ select:-webkit-autofill {
 article:has(.workout-card-action-slot [aria-expanded="true"]) {
   z-index: 5000;
 }
+
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
