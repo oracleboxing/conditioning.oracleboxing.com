@@ -13,6 +13,12 @@ function safeNext(value: FormDataEntryValue | null) {
 }
 
 
+function withRedirectTo(actionLink: string, redirectTo: string) {
+  const url = new URL(actionLink);
+  url.searchParams.set("redirect_to", redirectTo);
+  return url.toString();
+}
+
 async function sendMagicLinkEmail(email: string, actionLink: string) {
   const sendgridApiKey = process.env.SENDGRID_API_KEY;
   const fromEmail = process.env.AUTH_EMAIL_FROM ?? "team@oracleboxing.com";
@@ -95,7 +101,7 @@ export async function signInWithEmail(formData: FormData) {
   }
 
   try {
-    await sendMagicLinkEmail(email, actionLink);
+    await sendMagicLinkEmail(email, withRedirectTo(actionLink, redirectTo));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not send sign-in email";
     redirect(`/login?state=error&message=${encodeURIComponent(message)}&next=${encodeURIComponent(next)}`);
