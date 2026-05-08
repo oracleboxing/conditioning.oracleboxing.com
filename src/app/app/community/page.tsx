@@ -1,5 +1,6 @@
-import { CommunityGallery } from "./community-gallery";
+import { getAuthenticatedUser } from "@/lib/auth/app-user";
 import { getCommunityWorkouts } from "@/lib/community/workouts";
+import { CommunityGallery } from "./community-gallery";
 
 export const metadata = {
   title: "Team | Oracle Conditioning",
@@ -11,7 +12,8 @@ type CommunityPageProps = {
 
 export default async function CommunityPage({ searchParams }: CommunityPageProps) {
   const params = await searchParams;
-  const { workouts } = await getCommunityWorkouts();
+  const { user } = await getAuthenticatedUser();
+  const { workouts } = await getCommunityWorkouts(user?.id);
 
   return (
     <div className="space-y-5 text-slate-950">

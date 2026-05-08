@@ -35,37 +35,20 @@ export async function hasPremiumAccess(
   }
 
   try {
-    const { data, error } = await supabase
+    const query = supabase
       .from("member_access")
       .select("active,tier")
-      .eq("user_id", user.id)
-      .eq("active", true)
-      .maybeSingle();
+      .eq("active", true);
 
-    if (!error && rowHasPremiumTier(data)) {
-      return true;
-    }
-  } catch {
-    return false;
-  }
-
-  if (!email) {
-    return false;
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from("member_access")
-      .select("active,tier")
-      .eq("email", email)
-      .eq("active", true)
-      .maybeSingle();
+    const { data, error } = email
+      ? await query.or(`user_id.eq.${user.id},email.eq.${email}`)
+      : await query.eq("user_id", user.id);
 
     if (error) {
       return false;
     }
 
-    return rowHasPremiumTier(data);
+    return (data ?? []).some((row) => rowHasPremiumTier(row));
   } catch {
     return false;
   }

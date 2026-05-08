@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import type { ProfileRow } from "@/lib/supabase/types";
-import { createAuthClient } from "@/lib/supabase/auth-server";
+import { getAuthenticatedUser } from "@/lib/auth/app-user";
+import { getProfileForUser } from "@/lib/auth/profile";
 import { signOut } from "../../login/actions";
 import { updateProfile } from "./actions";
 import { ProfilePhotoField } from "./profile-photo-field";
@@ -31,15 +31,11 @@ function initials(firstName: string, lastName: string, email: string) {
 
 export default async function ProfilePage({ searchParams }: ProfilePageProps) {
   const params = await searchParams;
-  const supabase = await createAuthClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await getAuthenticatedUser();
 
   if (!user) redirect("/login?next=/app/profile");
 
-  const { data, error } = await supabase.from("profiles").select("id,email,first_name,last_name,display_name,avatar_url,created_at,updated_at").eq("id", user.id).maybeSingle();
-  const profile = error ? null : (data as ProfileRow | null);
+  const profile = await getProfileForUser(user.id);
   const metadata = user.user_metadata ?? {};
   const fullName = fallbackName(metadata, "full_name") || fallbackName(metadata, "name");
   const splitName = fullName.split(" ").filter(Boolean);

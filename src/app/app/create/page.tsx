@@ -1,12 +1,12 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { titleFromIntake } from "@/lib/ai/chat-history";
-import { planPreviewFromGeneratedWorkout } from "@/components/plans/plan-preview-adapters";
-import { PlanPreview } from "@/components/plans/plan-preview";
+import { planPreviewFromGeneratedWorkout, type PlanPreviewModel } from "@/components/plans/plan-preview-adapters";
 import { createBackTarget } from "@/lib/navigation/create-back-target";
 import type { GeneratedWorkout, WorkoutChatMessage, WorkoutIntake, WorkoutPersistence } from "@/lib/ai/workout-types";
 
@@ -29,6 +29,11 @@ type LoadChatResponse = {
   warning?: string;
 };
 
+
+const LazyPlanPreview = dynamic<{ plan: PlanPreviewModel }>(() => import("@/components/plans/plan-preview").then((mod) => mod.PlanPreview), {
+  ssr: false,
+  loading: () => <div className="h-72 animate-pulse rounded-2xl border border-zinc-200 bg-zinc-100" />,
+});
 
 const THINKING_MESSAGES = ["Reading your request", "Checking the workout", "Getting ready to update it"];
 const UPDATE_MESSAGES = ["Updating workout", "Finding better exercise matches", "Rebalancing the session", "Saving changes"];
@@ -375,7 +380,7 @@ function CreateWorkoutThread({ initialSessionId, initialPrompt, showDebug, nextP
           <div className="relative flex min-h-0 min-w-0 max-w-full flex-col overflow-hidden">
             <div ref={scrollRef} className={`scrollbar-none min-h-0 max-w-full flex-1 overflow-y-auto overflow-x-hidden ${workout && mobileWorkoutOpen ? "px-4 pb-5 pt-4" : "space-y-6 px-4 pb-5 pt-8"}`}> 
             {workout && mobileWorkoutOpen ? (
-              <PlanPreview plan={planPreviewFromGeneratedWorkout(workout)} />
+              <LazyPlanPreview plan={planPreviewFromGeneratedWorkout(workout)} />
             ) : messages.map((message, index) => (
               <div key={`${message.role}-${index}`} className={message.role === "user" ? "flex w-full min-w-0 justify-end" : "flex w-full min-w-0 justify-start"}>
                 {message.role === "user" ? (
@@ -429,7 +434,7 @@ function CreateWorkoutThread({ initialSessionId, initialPrompt, showDebug, nextP
 }
 
 
-export default function CreateWorkoutPage() {
+function CreateWorkoutPageContent() {
   const searchParams = useSearchParams();
   const activeSessionId = searchParams.get("sessionId");
   const initialPrompt = searchParams.get("prompt");
@@ -437,4 +442,12 @@ export default function CreateWorkoutPage() {
   const nextPath = searchParams.get("next");
 
   return <CreateWorkoutThread initialSessionId={activeSessionId} initialPrompt={initialPrompt} showDebug={showDebug} nextPath={nextPath} />;
+}
+
+export default function CreateWorkoutPage() {
+  return (
+    <Suspense fallback={<main className="flex h-screen items-center justify-center bg-white text-sm font-medium text-zinc-500">Opening workout creator...</main>}>
+      <CreateWorkoutPageContent />
+    </Suspense>
+  );
 }

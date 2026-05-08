@@ -131,12 +131,9 @@ export type CommunityWorkoutSource = {
   note: string | null;
 };
 
-export async function getCommunityWorkouts(): Promise<CommunityWorkoutSource> {
+export async function getCommunityWorkouts(currentUserId?: string): Promise<CommunityWorkoutSource> {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
 
     const { data, error } = await supabase
       .from("workouts")
@@ -176,12 +173,12 @@ export async function getCommunityWorkouts(): Promise<CommunityWorkoutSource> {
         const id = copy.ai_model?.replace("shared-workout-copy:", "");
         if (!id) continue;
         saveCounts.set(id, (saveCounts.get(id) ?? 0) + 1);
-        if (user && copy.user_id === user.id) savedIds.add(id);
+        if (currentUserId && copy.user_id === currentUserId) savedIds.add(id);
       }
     }
 
     const workouts = rows.map((row) => ({
-      ...toCommunityWorkout(row, user?.id, row.user_id ? profilesById.get(row.user_id) ?? authorFallbacks.get(row.user_id) : null, savedIds),
+      ...toCommunityWorkout(row, currentUserId, row.user_id ? profilesById.get(row.user_id) ?? authorFallbacks.get(row.user_id) : null, savedIds),
       savedCount: saveCounts.get(row.id) ?? 0,
     }));
 

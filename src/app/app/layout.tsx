@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { hasPremiumAccess } from "@/lib/auth/access";
-import type { ProfileRow } from "@/lib/supabase/types";
-import { createAuthClient } from "@/lib/supabase/auth-server";
+import { getAuthenticatedUser } from "@/lib/auth/app-user";
+import { getProfileForUser } from "@/lib/auth/profile";
 import { signOut } from "../login/actions";
 import { AppShell } from "./app-shell";
 
@@ -26,18 +26,14 @@ function PremiumRequired({ email }: { email?: string }) {
 }
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createAuthClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getAuthenticatedUser();
 
   if (!user) redirect("/login?next=/app");
 
   const premium = await hasPremiumAccess(supabase, user);
   if (!premium) return <PremiumRequired email={user.email ?? undefined} />;
 
-  const { data: profileData, error: profileError } = await supabase.from("profiles").select("id,email,first_name,last_name,display_name,avatar_url,created_at,updated_at").eq("id", user.id).maybeSingle();
-  const profile = profileError ? null : (profileData as ProfileRow | null);
+  const profile = await getProfileForUser(user.id);
   const metadata = user.user_metadata ?? {};
   const metadataName = typeof metadata.full_name === "string" ? metadata.full_name : typeof metadata.name === "string" ? metadata.name : "";
   const firstName = profile?.first_name || (typeof metadata.first_name === "string" ? metadata.first_name : "") || metadataName.split(" ").filter(Boolean)[0] || user.email?.split("@")[0] || "Member";

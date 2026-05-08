@@ -1,14 +1,11 @@
-import { createAuthClient } from "@/lib/supabase/auth-server";
+import { getAuthenticatedUser } from "@/lib/auth/app-user";
 import { getSavedWorkouts } from "@/lib/workouts/data";
 import { WorkoutList } from "./workout-list";
 
 export const dynamic = "force-dynamic";
 
 export default async function MyWorkoutsPage() {
-  const supabase = await createAuthClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await getAuthenticatedUser();
   const { workouts } = await getSavedWorkouts(user?.id);
 
   return (
