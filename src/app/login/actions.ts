@@ -13,12 +13,6 @@ function safeNext(value: FormDataEntryValue | null) {
 }
 
 
-function withRedirectTo(actionLink: string, redirectTo: string) {
-  const url = new URL(actionLink);
-  url.searchParams.set("redirect_to", redirectTo);
-  return url.toString();
-}
-
 async function sendMagicLinkEmail(email: string, actionLink: string) {
   const sendgridApiKey = process.env.SENDGRID_API_KEY;
   const fromEmail = process.env.AUTH_EMAIL_FROM ?? "team@oracleboxing.com";
@@ -94,14 +88,17 @@ export async function signInWithEmail(formData: FormData) {
     options: { redirectTo },
   });
 
-  const actionLink = data.properties?.action_link;
+  const tokenHash = data.properties?.hashed_token;
+  const verificationType = data.properties?.verification_type;
 
-  if (error || !actionLink) {
+  if (error || !tokenHash || !verificationType) {
     redirect(`/login?state=error&message=${encodeURIComponent(error?.message ?? "Could not create sign-in link")}&next=${encodeURIComponent(next)}`);
   }
 
+  const actionLink = `${origin}/auth/callback?token_hash=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(verificationType)}&next=${encodeURIComponent(next)}`;
+
   try {
-    await sendMagicLinkEmail(email, withRedirectTo(actionLink, redirectTo));
+    await sendMagicLinkEmail(email, actionLink);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not send sign-in email";
     redirect(`/login?state=error&message=${encodeURIComponent(message)}&next=${encodeURIComponent(next)}`);
